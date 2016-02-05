@@ -1,0 +1,8 @@
+doc_id: 'LDM-DAX'
+doc_title: 'Data Access Design'
+copyright: '2016, AURA/LSST'
+authors:
+    - Jacek Becla
+# Current document version
+last_revised: 'February 5, 2016'
+version: '0.1.dev'
