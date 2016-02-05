@@ -15,8 +15,8 @@ Working with this document
 
 .. code::
 
-   git clone git@github.com:lsst/ldm-dax.git
-   cd ldm-dax
+   git clone git@github.com:lsst/LDM-DAX.git
+   cd LDM-DAX
    pip install -r requirements.txt
    make html
 
