@@ -138,6 +138,33 @@ Configuration
 A repository is created with a configuration specification. Details about how
 configuration works can be found under `Butler Configuration`_
 
+Repository of Repositories
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. warning::
+
+    This section describes New Butler features and is still fairly wet paint. It
+    is recommended that production code NOT use this feature yet.
+
+Using a ``RepositoryMapper``, repositories can be found based on search criteria
+passed via datasetType and dataId. In effect, there can be a repository of
+repositories in storage. This allows the butler to be used to find repositories
+based on criteria such as version, a range of dates, etc.
+
+You can see the full example in the `"reposInButler" unit test on github
+<https://github.com/lsst/daf_persistence/blob/master/tests/reposInButler.py>`_.
+
+You can also see an example of a possible implentation of getting repositories
+based on a valid date range in the `"findReposByDate" unit test on github
+<https://github.com/lsst/daf_persistence/tests/reposFindByDate.py>`_.
+ReposFindByDate uses a mapper in the test file. When specific repo-search
+behavior is defined it should probably be added to the ``RepositoryMapper`` or a
+subclass of it.
+
+Repositories can exist anywhere relative to one
+another; each input (parent) repository's root location is specified
+individually.
+
 Mapper
 ------
 
