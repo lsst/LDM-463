@@ -164,10 +164,15 @@ remote Repositories. TBD.
 Storage
 ^^^^^^^
 
-Storage is a protocol (or abstract base class TBD) that defines the api for
-concrete Storage classes that implement read and write access. Storage classes
-can be added by client code and are to be pluggable; i.e. provided by client
-code.
+.. warning::
+
+    This section describes New Butler classes, and should be considered
+    internal-only, non-public API for the time being.
+
+Storage is intended to be a protocol (or abstract base class TBD) that defines
+the api for concrete Storage classes that implement read and write access.
+Storage classes can be added by client code and are to be pluggable; i.e.
+provided by client code.
 
 Concrete classes include support for one of:
 
