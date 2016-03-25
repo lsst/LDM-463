@@ -133,6 +133,11 @@ The stated requirement is: Must support a system so that data may be referred to
 by version at repository load time at the latest. (Won't be selectable by dataId
 when calling ``Butler.get(...)``) .
 
+Configuration
+^^^^^^^^^^^^^
+A repository is created with a configuration specification. Details about how
+configuration works can be found under `Butler Configuration`_
+
 Mapper
 ------
 
@@ -186,6 +191,15 @@ Butler
 The ``Butler`` class is the  overall interface and manager for repositories. The
 Butler has a single Repository that may have zero or more input repositories and
 one or more write-only output Repositories.
+
+Butler Configuration
+--------------------
+
+.. warning::
+
+    The Butler configuration mechanism is still being developed and details will
+    be provided here once it solidifies a little more. More information about
+    current use is available under `Butler with Legacy Repositories`_.
 
 Mapper Configuration
 --------------------
