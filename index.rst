@@ -12,8 +12,6 @@ Introduction
 Butler
 ======
 
-
-
 Overview - What is the Data Butler?
 -----------------------------------
 
@@ -83,48 +81,13 @@ Repositories can point to other repositories as inputs. This relationship is
 defined in the repository configuration.
 
 Repositories read from their parent repositories. Repositories write to
-themselves and do not read from themselves. Repositories can have more than one
-parent, and parents can have parents. This provides what is in effect a search
-path for datasets, allowing repositories to share access to datasets without
-copying data and modification of data without overwriting previously written
-data.
+themselves may read from themselves. Repositories can have more than one parent,
+and parents can have parents. This provides what is in effect a search path for
+datasets, allowing repositories to share access to datasets without copying data
+and modification of data without overwriting previously written data.
 
-It is possible to have a Repository be both 'self' and 'parent' to allow both
-input and output behavior in a single butler instance.
-
-The search order is set by the repository configuration; parents that are first
-in the list will be searched first, and search is depth-first. Repositories can
-be configured to return one result or to return all results.
-
-Peer and Self
-^^^^^^^^^^^^^
-
-Repositories can have 'peer' repositories as outputs. This allows a single call
-to ``Butler.put`` to write data to multiple outputs, by writing to self and to
-all the peers. Peer repositories are defined in the repository configuration.
-
-Recursive Calls to Self and Peers
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-The public Butler API methods are mostly used to make calls on mappers in self
-and related repositories. The public methods implement recursive behaviors, via
-``doParents`` and ``doSelfAndPeers``, which forward to 'do' methods in self and
-related repositories. For example calling
-
- ``repository.map(datasetType, dataId, write=False)``
-
-calls ``doMap`` via
-
- ``return self.doSelfAndPeers(Repository.doMap, *args, **kwargs)``.
-
-doSelfAndPeers will call doMap on self and all the peer repositories, returning
-the value or list of values.
-
-To change or extend the recursive behavior of ``Repository``, subclass it and
-override ``doParents``, ``doSelfAndPeers``, and/or public API methods as needed.
-
-Version
-^^^^^^^
+Repository Version
+^^^^^^^^^^^^^^^^^^
 This feature is still being designed and developed under
 `DM-4168 - Data repository selection based on version
 <https://jira.lsstcorp.org/browse/DM-4168>`_.
@@ -138,33 +101,6 @@ Configuration
 A repository is created with a configuration specification. Details about how
 configuration works can be found under `Butler Configuration`_
 
-Repository of Repositories
-^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-.. warning::
-
-    This section describes New Butler features and is still fairly wet paint. It
-    is recommended that production code NOT use this feature yet.
-
-Using a ``RepositoryMapper``, repositories can be found based on search criteria
-passed via datasetType and dataId. In effect, there can be a repository of
-repositories in storage. This allows the butler to be used to find repositories
-based on criteria such as version, a range of dates, etc.
-
-You can see the full example in the `"reposInButler" unit test on github
-<https://github.com/lsst/daf_persistence/blob/master/tests/reposInButler.py>`_.
-
-You can also see an example of a possible implentation of getting repositories
-based on a valid date range in the `"findReposByDate" unit test on github
-<https://github.com/lsst/daf_persistence/tests/reposFindByDate.py>`_.
-ReposFindByDate uses a mapper in the test file. When specific repo-search
-behavior is defined it should probably be added to the ``RepositoryMapper`` or a
-subclass of it.
-
-Repositories can exist anywhere relative to one
-another; each input (parent) repository's root location is specified
-individually.
-
 Mapper
 ------
 
@@ -173,20 +109,7 @@ locations for datasets (when writing). the ``Mapper`` class must be subclassed
 to implement meaningful behavior. The most commonly used Mapper subclass in LSST
 is ``CameraMapper``.
 
-Typically a Mapper instance is configured by data in the policy.
-
-Access, Storage, and Transport
-------------------------------
-
-.. warning::
-
-    This section describes New Butler classes, and should be considered
-    internal-only, non-public API for the time being.
-
-The ``Access`` class is intended to be an interface for the ``Storage`` class.
-
-``Access`` may also become an interface that contains connections and i/o for
-remote Repositories. TBD.
+Typically a Mapper instance is configured by the Policy.
 
 Storage
 ^^^^^^^
@@ -211,27 +134,17 @@ Concrete classes include support for one of:
 
 Concrete Storage classes are responsible for implementing:
 
- * Concurrency control that cooperates with their actual storage.
- * Handle-to-stored-Parent for persisted data so that the parent may be found at load time.
+ * Concurrency control that cooperates with their actual storage. Handle-to-
+ * stored-Parent for persisted data so that the parent may be found at load
+   time.
 
-It is worth noting that the Storage classes are interfaces and may contain the
-data (e.g. in-memory storage), but they do not necessarily contain it, and in
-some cases absolutely do not contain it.
+It is worth noting that the Storage classes are interfaces and may contain
+datasets (e.g. in-memory storage), but they do not necessarily contain datasets,
+and in some cases absolutely do not contain them.
 
 Butler
 ------
-The ``Butler`` class is the  overall interface and manager for repositories. The
-Butler has a single Repository that may have zero or more input repositories and
-one or more write-only output Repositories.
-
-Butler Configuration
---------------------
-
-.. warning::
-
-    The Butler configuration mechanism is still being developed and details will
-    be provided here once it solidifies a little more. More information about
-    current use is available under `Butler with Legacy Repositories`_.
+The ``Butler`` class is the  overall interface and manager for repositories.
 
 Mapper Configuration
 --------------------
