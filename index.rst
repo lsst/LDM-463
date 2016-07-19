@@ -17,9 +17,11 @@ Overview - What is the Data Butler?
 
 The Butler is a framework for generic I/O and data management. It isolates
 application code from the underlying data-access implementation in terms of
-storage formats, physical locations, data staging, database mapping, etc. Butler
-is configured by a Policy that provides configuration details, as well as by
-parameters provided at initialization time.
+storage formats, physical locations, data staging, database mapping, etc. 
+
+Butler stores data in and retrieves data from Repositories. Each repository has
+a mapper that is used to find data in the repository. The mapper is configured
+by a Policy that provides configuration details.
 
 This general concept makes the Data Butler potentially able to serve as a data
 *router* (or hub or switch). Data can be published and sent to multiple
@@ -53,38 +55,42 @@ database, or in other storage) a repository contains any/all of:
 - a registry to expedite data lookup
 - references to parent repositories.
 
-When a Repository class is instantiated, it uses input configuration parameters
+When a Repository class is instantiated, it uses input configuration arguments
 to locate or create a repository in storage. It then instantiates the Mapper and
-Access classes as well as it's parent & peer Repositories.
+Access classes as well as its parent & peer Repositories.
+
+If the configuration arguments point to a repository that already exists then
+the arguments must be consistent with the stored repository configuration. This
+includes which mapper to use and what the parents of that repository are.
 
 Root
 ^^^^
 
 Root is the 'top-level' location of a Repository and provides access to
-within-repository items such as a Mapper, a Policy, and the Registry. These
-provide further information about where actual Datasets can be found (currently
-with in-filesystem repositories, the files are always stored under the folder
-indicated by Root).
+within-repository items such as RepositoryCfg_, a Policy, and the Registry.
+These provide further information about where actual Datasets can be found
+(currently with in-filesystem repositories, the files are always stored under
+the folder indicated by Root). 
 
-TBD if Root will be a proper class, a named tuple, some other data type, or just
-parameters passed to an initializer in Butler, Repository, or other. It should
-contain basic bootstrap info for a Repository. It seems reasonable that the
-exact contents of Root should depend on the type of Storage being initialized.
+Root is passed to the Butler by URI.
 
-The only current example of Root is in posix storage: Root is the path to the
-top folder of the Repository.
+CfgRoot
+^^^^^^^
+If a RepositoryCfg_ is not located within the repository it can exist at a 
+"configuration root". It's ``root`` parameter must indicate where the repository
+is.
 
-Parent and Self
-^^^^^^^^^^^^^^^
+Parents
+^^^^^^^
 
-Repositories can point to other repositories as inputs. This relationship is
-defined in the repository configuration.
+Repositories may have zero or more parents that are other repositories. These
+repositories are used by the butler as inputs. Repositories' parent
+configuration are referenced by URI in the repository configuration.
 
-Repositories read from their parent repositories. Repositories write to
-themselves may read from themselves. Repositories can have more than one parent,
-and parents can have parents. This provides what is in effect a search path for
-datasets, allowing repositories to share access to datasets without copying data
-and modification of data without overwriting previously written data.
+When a repository is used as a Butler output, all of the butler's input and
+writable output repositories are listed in that output repository's list of
+parent repositories. (But not parents-of-parents etc; these are found again the
+next time the parent is loaded).
 
 Repository Version
 ^^^^^^^^^^^^^^^^^^
@@ -96,11 +102,179 @@ The stated requirement is: Must support a system so that data may be referred to
 by version at repository load time at the latest. (Won't be selectable by dataId
 when calling ``Butler.get(...)``) .
 
-Configuration
-^^^^^^^^^^^^^
-A repository is created with a configuration specification. Details about how
-configuration works can be found under `Butler Configuration`_
+Butler
+------
+The ``Butler`` class is the  overall interface and manager for repositories. 
+The Butler init function takes a list of input and output repositories (see
+below for a description of inputs and outputs) that are used as locations for
+i/o.
 
+The new butler initializer API is ``Butler(inputs=None, outputs=None)``. Values
+for both ``inputs`` and ``outputs`` can be an instance of the ``RepositoryArgs``
+class or can be a string. Additionally, the value can be either a single item or
+many items in a sequence container. If the value is only a string, it is treated
+as a URI. In inputs it must refer to a persisted ``RepositoryCfg`` and in
+outputs it can refer to an existing ``RepositoryCfg`` or can be a location to
+create a new repository.
+
+Inputs and Outputs
+^^^^^^^^^^^^^^^^^^
+
+Butler will only perform read actions on input repositories and will perform
+read and write actions on output repositories. Repositories may also have a
+mode that can be one of:
+
+* read
+* write
+* read-write 
+
+When the mode of an output repository is read-write it will also be used as an
+input. Attempting to pass a read-only repo as a butler output or a write-only
+repo as a butler input will raise an exception.
+
+
+Already existing Repositories as Outputs
+""""""""""""""""""""""""""""""""""""""""
+
+When initializing a ``Butler`` with one or more output repositories that already
+exist it is important to not add any input repositories that are not already
+parents of the output repository. This is because all butler inputs (including
+readable outputs) become parents of output repositories, and the repository
+configuration is not allowed to change after it has been written.
+
+Output arguments derived from inputs
+""""""""""""""""""""""""""""""""""""
+
+Some settings for output repositories can be derived from input repository
+configurations. For example, if an output configuration does not specify a
+mapper, the input mapper may possibly be assumed (this will work as long as all
+the input repositories use the same type of mapper; if the inputs use different
+types of mapper then a single type mapper can not be inferred to use for the
+output repositories). When possible the butler will use settings from input
+configurations to complete RepositoryArgs parameters for output repositories. 
+
+Search Order
+""""""""""""
+The order of repositories passed to inputs and outputs is meaningful; search is
+depth-first and in order (left to right). Readable outputs will be searched
+before inputs. Parents of readable outputs/inputs will be searched before the
+next passed-in output/input.
+
+Tagging 
+^^^^^^^
+
+Readable repositories can be “tagged” with an identifier that gets used when
+reading from a repository. A tag can be specified in ``RepositoryArgs`` when
+initializing a Butler. A repository can be tagged with more than one tag by
+passing in a container of tags. The tag is not persisted with the repository.
+
+When performing read operations on the butler, if the DataId contains one or
+more tags, the repository will only be used for lookups if it is also tagged
+with one of the tags in the DataId. If the DataId has no tags, then all input
+repositories will be used. More information about DataId and its tag are
+available in the DataId section.
+
+RepositoryArgs
+^^^^^^^^^^^^^^
+
+``RepositoryArgs`` instances are used to instantiate repositories in Butler. Its
+parameters are:
+
+* ``mode`` 
+    * Optional.
+    * string - This can be one of 'r', 'w', or 'rw' (read, write, read-write). 
+    * It is used to indicate the read/write state of the repositories. Input
+      repositories are always read-only and an exception will be raised if the
+      mode of an input repository is 'w'. It may be 'rw' but for inputs the
+      behavior will be the same as 'r'. Output repositories must be 'w' or 'rw'.
+      If it is 'rw' the repository will also be used as an input repository. If
+      mode is not specified, outputs will default to 'w' and inputs will default
+      to 'w'.
+* ``mapper`` 
+    * Optional if the repository already exists - for inputs it's better to
+      leave this parameter empty. For outputs it's optional if the mapper can be
+      inferred from the input repositories and is otherwise required.
+    * Can be an importable & instantiatable string (e.g.
+      ``lsst.daf.persistence.CameraMapper``), an class object, or a class
+      instance.
+    * This specifies the mapper to be used by the repository.
+* ``mapperArgs``
+    * Optional
+    * dict
+    * These arguments are passed to the mapper when it is being instantiated (if
+      it needs to be instantiated). If the mapper requires Root_ it does not
+      need to be included in mapperArgs. When creating the mapper if Root_ is
+      needed the butler will get Root_ from storage and use that. 
+* ``root`` and ``cfgRoot``
+    * at least one is required.
+    * string URI
+    * ``root`` is a URI to where the repository or repositoryCfg is (if it
+      exists already) or to where the repository should be (if it does not exist
+      yet). If the RepositoryCfg is or should be stored separately from the
+      repository then ``cfgRoot`` should be a URI to the persisted RepositoryCfg.
+* ``tags``
+    * Optional
+    * Any tag type
+    * Indicates the tags that a repository should be labeled with in the
+      butler. (There is also a member function of ``RepositoryCfg`` to set
+      tags on an instantiated cfg.)
+
+If the repository already exists it is best to only to populate:
+
+ * ``root`` (required, to find the repository cfg)
+ * ``tags`` - if any are to be used.
+ * ``mode`` - for output repositories that should be readable.
+ 
+If ``mapper`` and/or ``mapperArgs`` are populated and the value in args does not 
+match the value of the persisted RepositoryCfg an exception will be raised.
+
+Details about the repository configuration are persisted in the
+``RepositoryCfg`` object when it is serialized. ``RepositoryArgs`` parameters
+that do not appear in the ``RepositoryCfg`` are not persisted (``mode``,
+``tags``).
+
+RepositoryCfg
+^^^^^^^^^^^^^
+
+When a ``Repository`` is initialized by Butler its ``RepositoryCfg`` is persisted.
+The ``RepositoryCfg`` is written only once and can not change. The ``RepositoryCfg``
+parameters are:
+
+* ``root``
+    * Required (but may not appear in persisted RepositoryCfg). This field is
+      populated in the persisted cfg in the case where the cfg is not stored in
+      the repository. If the persisted cfg is at the root of the repository then
+      the field is left blank.
+    * string URI
+    * This is a URI to the root location of the repository.
+* ``mapper``
+    * Required 
+    * Can be an importable & instantiatable string (e.g.
+      ``lsst.daf.persistence.CameraMapper``), an class object, or a class
+      instance.
+    * This indicates the mapper to use with this repository
+* ``mapperArgs``
+    * Required
+    * dict or None
+    * These arguments are passed to the mapper when it is being instantiated (if
+      it needs to be instantiated and the mapper parameter does not have the
+      args packed into that value). If the mapper requires root it does not need
+      to be included in mapperArgs. When creating the mapper if Root_ is needed
+      the butler will get root from storage and use that. 
+* ``parents``
+    * required
+    * list or None
+    * This is a list of URI to the ``RepositoryCfg`` of each parent.
+* ``_isLegacyRepository``
+    * not persisted, required in instantiated RepositoryCfg (but is instantiated
+      via the cfg reader).
+    * bool
+    * this is used to mark when a RepositoryCfg was synthesized by reading an
+      old-style repository filesystem layout, including reading the _mapper
+      file and populating root from the repository's root. In the case where
+      _isLegacyRepository is True, the RepositoryCfg is never persisted; the
+      next time the repository is used the cfg will be synthesized again.    
+    
 Mapper
 ------
 
@@ -142,9 +316,6 @@ It is worth noting that the Storage classes are interfaces and may contain
 datasets (e.g. in-memory storage), but they do not necessarily contain datasets,
 and in some cases absolutely do not contain them.
 
-Butler
-------
-The ``Butler`` class is the  overall interface and manager for repositories.
 
 Mapper Configuration
 --------------------
@@ -190,10 +361,22 @@ genres are often (but not necessarily) common to all dataset types with the
 same Python type, making it easy for an application to select which genre is
 applicable to a new dataset type that it is creating.
 
-dataId
+DataId
 ------
-Scientifically meaningful key-value pairs used by ``butler.get`` and
-``butler.put`` to select one or more datasets that should be read or written.
+A class that extends dict. As a dict it contains scientifically meaningful
+key-value pairs the mapper to find a location of one or more datasets that
+should be read or written.
+
+It also contains a member variable called ``tag``:
+
+* ``tag`` may be a string or other type, including container types. When
+  searching repositories, if the tag argument is not None, then repositories will
+  only be searched if their tag equals the value of tag (or if a match is found in
+  either container of tags).
+* When searching, if an input repository is tagged, all of its parents will be
+  searched (even if they do not have a tag).
+* The Butler API allows a dict to be passed instead of a DataId; as needed it
+  will convert the dict into a DataId object (with no tags) internally.
 
 Butler with Legacy Repositories
 -------------------------------
