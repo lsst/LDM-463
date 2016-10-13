@@ -639,6 +639,45 @@ Component datasets may exist within the same or different repositories. Butler u
 ``self.get(...)`` to find each component, so for each component the search will start
 at the top of the repository search list.
 
+Loading Components Individually
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+It is possible to load a Component object of a Composite dataset without loading
+the entire Composite object. To do so, when calling :code:`butler.get()`, use
+:code:`<datasetType>.<componentName>`. For example, when using a composite
+declared like this:
+
+.. code-block:: none
+
+    calexp_psf: {
+        ...type 1 dataset details...
+    }
+
+    calexp: {
+        composite: {
+            psf: {
+                datasetType: 'calexp_psf'
+            }
+            ...
+        }
+        ...
+    }
+
+You can retrieve just the psf of the calexp by calling:
+
+.. code-block:: python
+
+    psf = butler.get('calexp.psf', dataId={...})
+
+Simiarly, you can put just the psf of the calexp by calling:
+
+.. code-block:: python
+
+    butler.put(psf, 'calexp.psf', dataId={...})
+
+Note that componentName and its datasetType are in different namespaces. Because
+of this, a component name can be the same string as its datasetType, but it does
+not have to be.
 
 DAX
 ===
