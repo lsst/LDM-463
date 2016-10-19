@@ -596,31 +596,40 @@ individual components must provide a means of accessing those component objects
 for serialization (i.e. the class must provide getters or the member that is the
 component must be accessible).
 
-Assembler & Disassembler Plugins
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Assembler & Disassembler
+^^^^^^^^^^^^^^^^^^^^^^^^
 
-For every Composite datasetType, an Assembler function must be provided to
-Butler. This function is used to assemble a Composite object from its component
-parts. Similarly, a disassembler must be provided that can deconstruct a
-Composite Object into Component Objects to be serialized individually.
+For every Composite datasetType, an "assembler" function is required by Butler.
+This function is used to assemble a Composite object from its component parts.
+Similarly, a "disassembler" is required, that can deconstruct a Composite Object
+into Component Objects to be serialized individually.
+
+There is a generic assembler and disassembler that can be used in some cases. If
+it won't work, assembler and disassembler plugins can be specified.
+
+Assembler & Disassembler Plugins
+""""""""""""""""""""""""""""""""
 
 Assembler and Disassembler functions are specified in the policy as members of the
 composite object datasetType definition.
+
+See :ref:`Composite Policy <composite-policy>` to see how to include the
+assembler in the policy.
 
 The assembler function signature is:
 
 .. code-block:: none
 
-    def <assembler function name>(dataId, componentDict, cls):
+    def <assembler function name>(dataId, componentInfo, cls):
         """Function for assembling <object> in Butler
 
         Parameters
         ----------
         dataId : dict
-            The dataId that was used to find the objects in componentDict.
-        componentDict : dict
-            Dict of components that were loaded for this composite. Keys correlate
-            to the component name in the policy. Values are instantiated objects.
+            The dataId that was used to find the objects in componentInfo.
+        componentInfo : dict of componentDatasetName to ComponentInfo
+            Keys are the component names as defined by the datasetType in the
+            policy. Values are ComponentInfo objects.
         cls : class object
             A class object of the type specified for this datasetType by the policy.
 
@@ -634,7 +643,7 @@ The disassembler function signature is:
 
 .. code-block:: none
 
-    def <disassembler function name>(obj, dataId, componentDict):
+    def <disassembler function name>(obj, dataId, componentInfo):
         """Function for disassembling <object> in Butler
 
         Parameters
@@ -643,14 +652,75 @@ The disassembler function signature is:
             The object that will be disassembled into component parts.
         dataId : dict
             The dataId that is being used to persist this object.
-        componentDict : dict
-            A dict to populate with the components that should be persisted for
-            this composite.
+        componentInfo : dict of componentDatasetName to ComponentInfo
+            A dict of ComponentInfo instances to populate with the components
+            that should be persisted for this composite. Keys are the component
+            names as defined by the datasetType in the policy. Values are
+            ComponentInfo objects.
 
         Returns
         -------
         None
         """
+
+ComponentInfo
+"""""""""""""
+
+ComponentInfo is a class used when assembling and disassembling a composite
+object in butler. It contains information about a component of a composite
+object and has a slot for passing the component object into the assembler and for
+the disssembler to pass the component object out.
+
+ComponentInfo is used as an input to assemblers and disassemblers (which are
+part of the butler public API).
+
+Some ComponentInfo parameters are populated with information from the policy and
+some are filled in by the butler, and when disassembling a composite object the
+obj slot is populated by the disassembler. More details are available in the
+class docstrings.
+
+Generic Assembler & Disassembler
+""""""""""""""""""""""""""""""""
+
+Butler has a generic assembler and disassembler that can be used in some cases,
+listed below. The list is in the order butler will try to apply the generic
+assembler.
+
+The generic assembler will be used when:
+
+1. The policy for the composite does not name an assembler.
+2. If a setter is not named for any component of the composite, and the python
+   object's ``__init__`` function has input arguments for all the components
+   that match the componentNames in the policy. In this case the object will be
+   initialized with the components.
+3. For each component:
+
+ a. The policy names the setter for the component.
+ b. The policy's component name matches the setter's name so that the setter
+    name can be inferred (more on inference below).
+
+The generic disassembler will be used when:
+
+1. The policy for the composite does not name an disassembler.
+2. For each component:
+
+ a. The policy names the getter for the component.
+ b. The policy's component name matches the getter's name so that the getter
+    name can be inferred (more on inference below).
+
+Setter & getter name inference:
+
+For each component, if the policy does not specify a setter name and the python
+object has setter names that match the component name then the setter name can
+be inferred. It will first try ``'set' + <componentName>``, and if that does not
+exist it will try ``'set' + <componentName>.capitalize`` (e.g. for component
+name 'foo', it will try ``setfoo`` and then ``setFoo``.) If no setter is
+specified and no setter can be found for a component object, it will raise a
+runtime error.
+
+Getter name inference works the same way (of course, replacing 'set' with 'get').
+
+.. _composite-policy:
 
 Composite Policy
 ^^^^^^^^^^^^^^^^
@@ -697,9 +767,11 @@ getter
     the composite class. Defaults to ``get<component name>``
 
 assembler
-    Name of a function that can be used to instantiate the custom object if the
-    default assembler (see the Assembler section below) is not suitable
-    disassembler: similar to assembler but for custom deserialization.
+    Name of a function that can be used to instantiate the custom object.
+    Optional, omit this parameter if the generic assembler can & should be used.
+
+disassembler
+    Similar to assembler but for custom deserialization.
 
 Component Dataset Location
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
