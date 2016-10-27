@@ -222,6 +222,10 @@ parameters are:
       exists already) or to where the repository should be (if it does not exist
       yet). If the RepositoryCfg is or should be stored separately from the
       repository then ``cfgRoot`` should be a URI to the persisted RepositoryCfg.
+* ``policy``
+    * Optional
+    * dictionary (nested)
+    * Represents policy to be used and saved with the repository configuration.
 * ``tags``
     * Optional
     * Any tag type
@@ -275,6 +279,11 @@ parameters are:
     * required
     * list or None
     * This is a list of URI to the ``RepositoryCfg`` of each parent.
+* ``policy``
+    * optional
+    * dict (nested)
+    * This is policy to be added to the rest of the policy loaded by the butler
+      for this repository.
 * ``_isLegacyRepository``
     * not persisted, required in instantiated RepositoryCfg (but is instantiated
       via the cfg reader).
@@ -343,12 +352,23 @@ Policy
 The policy provides configuration details for the butler framework that will
 access a dataset. The policy may be defined in any/all of:
 
-1. repository
-2. butler subclass
-3. butler framework
+1. The repository (as a parameter of the repository configuration)
+2. The package that subclasses ``CameraMapper``. Policy files should be in a folder
+   called 'policy' at the top level of the package directory (e.g.
+   ``obs_test/policy/...``).
+3. The butler framework provides basic policy details at
+   ``daf_persistence/policy`` and ``obs_base/policy``.
 
 If policy keys conflict, settings will override in that order, where the
 in-repository settings will have highest priority.
+
+In-repository policy is defined in new output repositories in the repository
+args object passed to butler initialization, or in the repository configuration
+of existing input and output repositories.
+
+In-repository policy does not get inherited by child repositories; a parent
+repository's policy is unique to that repository (unless explicitly duplicated
+in the child repository's configuration).
 
 Dataset Type
 ^^^^^^^^^^^^
