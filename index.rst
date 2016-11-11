@@ -326,6 +326,13 @@ It is worth noting that the Storage classes are interfaces and may contain
 datasets (e.g. in-memory storage), but they do not necessarily contain datasets,
 and in some cases absolutely do not contain them.
 
+Compressed Datasets
+^^^^^^^^^^^^^^^^^^^
+
+The standard implementation of the ``Mapping`` object (used by ``CameraMapper``)
+allows files to be compressed, with a ``.gz`` or ``.fz`` file extension. Support
+for these extensions is hard coded into ``Mapping`` but could be refactored to
+be specified by policy if necessary.
 
 Mapper Configuration
 --------------------
