@@ -27,7 +27,7 @@ Overview - What is the Data Butler?
 
 The Butler is a framework for generic I/O and data management. It isolates
 application code from the underlying data-access implementation in terms of
-storage formats, physical locations, data staging, database mapping, etc. 
+storage formats, physical locations, data staging, database mapping, etc.
 
 Butler stores data in and retrieves data from Repositories. Each repository has
 a mapper that is used to find data in the repository. The mapper is configured
@@ -80,13 +80,13 @@ Root is the 'top-level' location of a Repository and provides access to
 within-repository items such as RepositoryCfg_, a Policy, and the Registry.
 These provide further information about where actual Datasets can be found
 (currently with in-filesystem repositories, the files are always stored under
-the folder indicated by Root). 
+the folder indicated by Root).
 
 Root is passed to the Butler by URI.
 
 CfgRoot
 ^^^^^^^
-If a RepositoryCfg_ is not located within the repository it can exist at a 
+If a RepositoryCfg_ is not located within the repository it can exist at a
 "configuration root". It's ``root`` parameter must indicate where the repository
 is.
 
@@ -114,7 +114,7 @@ when calling ``Butler.get(...)``) .
 
 Butler
 ------
-The ``Butler`` class is the  overall interface and manager for repositories. 
+The ``Butler`` class is the  overall interface and manager for repositories.
 The Butler init function takes a list of input and output repositories (see
 below for a description of inputs and outputs) that are used as locations for
 i/o.
@@ -136,7 +136,7 @@ mode that can be one of:
 
 * read
 * write
-* read-write 
+* read-write
 
 When the mode of an output repository is read-write it will also be used as an
 input. Attempting to pass a read-only repo as a butler output or a write-only
@@ -161,7 +161,7 @@ mapper, the input mapper may possibly be assumed (this will work as long as all
 the input repositories use the same type of mapper; if the inputs use different
 types of mapper then a single type mapper can not be inferred to use for the
 output repositories). When possible the butler will use settings from input
-configurations to complete RepositoryArgs parameters for output repositories. 
+configurations to complete RepositoryArgs parameters for output repositories.
 
 Search Order
 """"""""""""
@@ -170,7 +170,7 @@ depth-first and in order (left to right). Readable outputs will be searched
 before inputs. Parents of readable outputs/inputs will be searched before the
 next passed-in output/input.
 
-Tagging 
+Tagging
 ^^^^^^^
 
 Readable repositories can be “tagged” with an identifier that gets used when
@@ -190,9 +190,9 @@ RepositoryArgs
 ``RepositoryArgs`` instances are used to instantiate repositories in Butler. Its
 parameters are:
 
-* ``mode`` 
+* ``mode``
     * Optional.
-    * string - This can be one of 'r', 'w', or 'rw' (read, write, read-write). 
+    * string - This can be one of 'r', 'w', or 'rw' (read, write, read-write).
     * It is used to indicate the read/write state of the repositories. Input
       repositories are always read-only and an exception will be raised if the
       mode of an input repository is 'w'. It may be 'rw' but for inputs the
@@ -200,7 +200,7 @@ parameters are:
       If it is 'rw' the repository will also be used as an input repository. If
       mode is not specified, outputs will default to 'w' and inputs will default
       to 'w'.
-* ``mapper`` 
+* ``mapper``
     * Optional if the repository already exists - for inputs it's better to
       leave this parameter empty. For outputs it's optional if the mapper can be
       inferred from the input repositories and is otherwise required.
@@ -214,7 +214,7 @@ parameters are:
     * These arguments are passed to the mapper when it is being instantiated (if
       it needs to be instantiated). If the mapper requires Root_ it does not
       need to be included in mapperArgs. When creating the mapper if Root_ is
-      needed the butler will get Root_ from storage and use that. 
+      needed the butler will get Root_ from storage and use that.
 * ``root`` and ``cfgRoot``
     * at least one is required.
     * string URI
@@ -234,8 +234,8 @@ If the repository already exists it is best to only to populate:
  * ``root`` (required, to find the repository cfg)
  * ``tags`` - if any are to be used.
  * ``mode`` - for output repositories that should be readable.
- 
-If ``mapper`` and/or ``mapperArgs`` are populated and the value in args does not 
+
+If ``mapper`` and/or ``mapperArgs`` are populated and the value in args does not
 match the value of the persisted RepositoryCfg an exception will be raised.
 
 Details about the repository configuration are persisted in the
@@ -258,7 +258,7 @@ parameters are:
     * string URI
     * This is a URI to the root location of the repository.
 * ``mapper``
-    * Required 
+    * Required
     * Can be an importable & instantiatable string (e.g.
       ``lsst.daf.persistence.CameraMapper``), an class object, or a class
       instance.
@@ -270,7 +270,7 @@ parameters are:
       it needs to be instantiated and the mapper parameter does not have the
       args packed into that value). If the mapper requires root it does not need
       to be included in mapperArgs. When creating the mapper if Root_ is needed
-      the butler will get root from storage and use that. 
+      the butler will get root from storage and use that.
 * ``parents``
     * required
     * list or None
@@ -283,8 +283,8 @@ parameters are:
       old-style repository filesystem layout, including reading the _mapper
       file and populating root from the repository's root. In the case where
       _isLegacyRepository is True, the RepositoryCfg is never persisted; the
-      next time the repository is used the cfg will be synthesized again.    
-    
+      next time the repository is used the cfg will be synthesized again.
+
 Mapper
 ------
 
@@ -447,6 +447,64 @@ in some contexts where materializing the set would be expensive. The
 'DataRefSet' is usually generated by listing existing datasets of a particular
 dataset type, but its component 'DataRef's can be used with other dataset types.
 
+Caching
+-------
+
+When an object is read by the Butler, the Butler keeps a weakref to that object
+and returns a normal reference to that object. As long as the normal ref is kept
+(i.e. as long as the object is not garbage collected) the Butler will keep the
+weakref. If that object is read again, the butler will get a normal ref (via the
+weakref) from the cache instead of reading the object from persisted data a
+second time.
+
+This is accomplished by keeping a WeakValueDictionary in Butler, where the key
+is a custom hash of the ButlerLocation passed to Butler._read, and the value is
+the object that was loaded using that ButlerLocation. The hash of ButlerLocation
+parameters includes the items needed to uniquely identify an object to be loaded
+(or retrieved from the cache).
+
+pythonType
+    The type of python object that should be returned.
+
+cppType
+    The type of swigged cpp object that will get read & returned (if any)
+
+storageName
+    The name/type of storage that the object is persisted as
+
+id(mapper)
+    Identifier for exactly which mapper instance mapped this object.
+
+id(storage)
+    Identifier for exactly which storage instance read this object.
+
+locationList
+    The URI that the object was read from (I think the length of this list will
+    always be exactly 1.
+
+json dump of usedDataId
+    The usedDataId contains the dataId that was used to map the object. It
+    containes items from the dataId that was passed to butler.get that were used
+    (and not items that were not used), as well as items that had to be looked
+    up.
+
+Cached-Object Mutability
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+This introduces an issue with object mutability. If a component object in the
+cache is shared between two composite objects, then it is possible that one of
+the composite objects could change the component object where the other
+composite object did not expect the component to change.
+
+One way to solve this would be to make composite objects that can/should be
+shared const, but that's c++ talk; it is not obvious that there is any 'good'
+way to make a Python object immutable.
+
+We might need to add api to butler.get so that an object can (should) declare if
+an object will be mutates (in which case the loaded object should be unique.
+This might be difficult in the presence of component objects, however. The 'will
+mutate' flag might need to be in the datasetType definition.
+
 Composite Datasets
 ------------------
 
@@ -524,40 +582,49 @@ Python objects that should be created from or, may contain, individual component
 objects must be able to be created from those separate components or have those
 components assigned at a later time. Objects that should be persisted into
 individual components must provide a means of accessing those component objects
-for serialization (i.e. the class must provide getters or the member that is the 
-component must be accessible). 
+for serialization (i.e. the class must provide getters or the member that is the
+component must be accessible).
+
+Assembler & Disassembler
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+For every Composite datasetType, an "assembler" function is required by Butler.
+This function is used to assemble a Composite object from its component parts.
+Similarly, a "disassembler" is required, that can deconstruct a Composite Object
+into Component Objects to be serialized individually.
+
+There is a generic assembler and disassembler that can be used in some cases. If
+it won't work, assembler and disassembler plugins can be specified.
 
 Assembler & Disassembler Plugins
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+""""""""""""""""""""""""""""""""
 
-For every Composite datasetType, an Assembler function must be provided to
-Butler. This function is used to assemble a Composite object from its component
-parts. Similarly, a disassembler must be provided that can deconstruct a
-Composite Object into Component Objects to be serialized individually.
-
-Assembler and Disassembler functions are specified in the policy as members of the 
+Assembler and Disassembler functions are specified in the policy as members of the
 composite object datasetType definition.
+
+See :ref:`Composite Policy <composite-policy>` to see how to include the
+assembler in the policy.
 
 The assembler function signature is:
 
 .. code-block:: none
-    
-    def <assembler function name>(dataId, componentDict, cls):
+
+    def <assembler function name>(dataId, componentInfo, cls):
         """Function for assembling <object> in Butler
-    
-        Parameters 
+
+        Parameters
         ----------
         dataId : dict
-            The dataId that was used to find the objects in componentDict.
-        componentDict : dict
-            Dict of components that were loaded for this composite. Keys correlate 
-            to the component name in the policy. Values are instantiated objects.
+            The dataId that was used to find the objects in componentInfo.
+        componentInfo : dict of componentDatasetName to ComponentInfo
+            Keys are the component names as defined by the datasetType in the
+            policy. Values are ComponentInfo objects.
         cls : class object
             A class object of the type specified for this datasetType by the policy.
-        
+
         Returns
         -------
-        object : instance of cls 
+        object : instance of cls
             Object that has been assembled or constructed with component inputs.
         """
 
@@ -565,24 +632,85 @@ The disassembler function signature is:
 
 .. code-block:: none
 
-    def <disassembler function name>(obj, dataId, componentDict):
+    def <disassembler function name>(obj, dataId, componentInfo):
         """Function for disassembling <object> in Butler
-        
+
         Parameters
         ----------
         obj : object instance
             The object that will be disassembled into component parts.
         dataId : dict
             The dataId that is being used to persist this object.
-        componentDict : dict
-            A dict to populate with the components that should be persisted for
-            this composite. 
-        
+        componentInfo : dict of componentDatasetName to ComponentInfo
+            A dict of ComponentInfo instances to populate with the components
+            that should be persisted for this composite. Keys are the component
+            names as defined by the datasetType in the policy. Values are
+            ComponentInfo objects.
+
         Returns
         -------
         None
         """
-    
+
+ComponentInfo
+"""""""""""""
+
+ComponentInfo is a class used when assembling and disassembling a composite
+object in butler. It contains information about a component of a composite
+object and has a slot for passing the component object into the assembler and for
+the disssembler to pass the component object out.
+
+ComponentInfo is used as an input to assemblers and disassemblers (which are
+part of the butler public API).
+
+Some ComponentInfo parameters are populated with information from the policy and
+some are filled in by the butler, and when disassembling a composite object the
+obj slot is populated by the disassembler. More details are available in the
+class docstrings.
+
+Generic Assembler & Disassembler
+""""""""""""""""""""""""""""""""
+
+Butler has a generic assembler and disassembler that can be used in some cases,
+listed below. The list is in the order butler will try to apply the generic
+assembler.
+
+The generic assembler will be used when:
+
+1. The policy for the composite does not name an assembler.
+2. If a setter is not named for any component of the composite, and the python
+   object's ``__init__`` function has input arguments for all the components
+   that match the componentNames in the policy. In this case the object will be
+   initialized with the components.
+3. For each component:
+
+ a. The policy names the setter for the component.
+ b. The policy's component name matches the setter's name so that the setter
+    name can be inferred (more on inference below).
+
+The generic disassembler will be used when:
+
+1. The policy for the composite does not name an disassembler.
+2. For each component:
+
+ a. The policy names the getter for the component.
+ b. The policy's component name matches the getter's name so that the getter
+    name can be inferred (more on inference below).
+
+Setter & getter name inference:
+
+For each component, if the policy does not specify a setter name and the python
+object has setter names that match the component name then the setter name can
+be inferred. It will first try ``'set' + <componentName>``, and if that does not
+exist it will try ``'set' + <componentName>.capitalize`` (e.g. for component
+name 'foo', it will try ``setfoo`` and then ``setFoo``.) If no setter is
+specified and no setter can be found for a component object, it will raise a
+runtime error.
+
+Getter name inference works the same way (of course, replacing 'set' with 'get').
+
+.. _composite-policy:
+
 Composite Policy
 ^^^^^^^^^^^^^^^^
 
@@ -628,9 +756,11 @@ getter
     the composite class. Defaults to ``get<component name>``
 
 assembler
-    Name of a function that can be used to instantiate the custom object if the
-    default assembler (see the Assembler section below) is not suitable
-    disassembler: similar to assembler but for custom deserialization.
+    Name of a function that can be used to instantiate the custom object.
+    Optional, omit this parameter if the generic assembler can & should be used.
+
+disassembler
+    Similar to assembler but for custom deserialization.
 
 Component Dataset Location
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -639,6 +769,45 @@ Component datasets may exist within the same or different repositories. Butler u
 ``self.get(...)`` to find each component, so for each component the search will start
 at the top of the repository search list.
 
+Loading Components Individually
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+It is possible to load a Component object of a Composite dataset without loading
+the entire Composite object. To do so, when calling :code:`butler.get()`, use
+:code:`<datasetType>.<componentName>`. For example, when using a composite
+declared like this:
+
+.. code-block:: none
+
+    calexp_psf: {
+        ...type 1 dataset details...
+    }
+
+    calexp: {
+        composite: {
+            psf: {
+                datasetType: 'calexp_psf'
+            }
+            ...
+        }
+        ...
+    }
+
+You can retrieve just the psf of the calexp by calling:
+
+.. code-block:: python
+
+    psf = butler.get('calexp.psf', dataId={...})
+
+Simiarly, you can put just the psf of the calexp by calling:
+
+.. code-block:: python
+
+    butler.put(psf, 'calexp.psf', dataId={...})
+
+Note that componentName and its datasetType are in different namespaces. Because
+of this, a component name can be the same string as its datasetType, but it does
+not have to be.
 
 DAX
 ===
