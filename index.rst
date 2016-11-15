@@ -750,6 +750,27 @@ objects.
 Note that the generic assembler does not interpret the list of component
 objects; the list will be passed as-is to the object constructor.
 
+Input-Only Components
+^^^^^^^^^^^^^^^^^^^^^
+
+The policy may mark components as input-only. This allows the dataset to be
+persisted to output repository (or repositories) without writing certain
+components that should not be written. To do so, use the keyword
+``inputOnly`` and make its value ``True``.
+
+.. code-block:: none
+
+    <datasetType name>: {
+        composite: {
+            <component name>: {
+                inputOnly: True
+                ...
+            }
+            ...
+        }
+    }
+
+
 Composite Policy
 ^^^^^^^^^^^^^^^^
 
@@ -767,6 +788,7 @@ the policy's dataset definition has a keyword ``composite``. The structure is:
                 assembler: <importable function to do custom deserialization>
                 disassembler: <importable function to do custom serialization>
                 subset: bool
+                inputOnly: bool
             }
             ...
         }
@@ -778,7 +800,8 @@ Where:
     The name of the dataset
 
 composite
-    A new section. It is optional. (it should be omitted if the dataset is not a composite.)
+    A new section. It is optional. (it should be omitted if the dataset is not a
+    composite.)
 
 <component name>
     A name that is used to refer to the component within the composite. Some
@@ -807,6 +830,10 @@ subset
     should be a list of objects, found by calling
     ``butler.subset(<dataset type>, dataId)``, where the dataset type is the component
     datasetType, and the dataId is what was passed into ``butler.get(..., dataId)``.
+
+inputOnly
+    Optional. If true, indicates that the object should not be put when putting
+    the components of the composite dataset.
 
 Component Dataset Location
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
