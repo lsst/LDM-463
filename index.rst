@@ -39,6 +39,47 @@ locations based on the Butler configuration. Those locations may include
 "persistent storages" that are actually dynamic (like displays or subscription
 streams) rather than truly persistent storage.
 
+'Old' vs. 'New'  Butler
+-----------------------
+
+'Old' Butler mechanisms and their 'new' Butler counterparts are discussed
+briefly here.
+
+A few things to know about 'new' Butler mechanisms
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+'Old' butler managed a single i/o repository. It could have parents via a
+``parent`` symlink. The ``CameraMapper`` allowed a separate ``calib``
+repository, and a separate output repository specified by ``outputRoot``. 'New'
+butler manages multiple repositories that can be specified as ``inputs``
+(read-only) and ``outputs`` which may be write-only or read-write. The behavior
+of 'new' Butler repositories is discussed throughout this document.
+
+Repository configuration (cfg) parameters are stored in a yaml file in the
+repository called ``repositoryCfg.yaml``. This cfg replaces the ``_parent``
+symlink and ``_mapper`` file, and includes other parameters.
+
+'New' butler repositories can have multiple parent repositories. References to
+parents are stored in the repository cfg.
+
+'Old' Butler mechanisms and their 'new' Butler counterparts
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+``_mapper``
+    Instead of naming a mapper in a single-purpose text file, the mapper is
+    embedded in the repository cfg file.
+
+``_parent``
+    Instead of a symlink to another repository on the local disc, the repository
+    cfg has a list of URIs. Each points to the parent repository's cfg file.
+
+``CameraMapper``
+    The current CameraMapper makes many calls to the local file system directly,
+    and uses the ``_parent`` mechanism to refer to parent repositories. This is
+    currently the case, but very soon will be refactored; each repository (parents
+    and children) that use the CameraMapper will be managed by a separate Repository
+    class in Butler. Searching parents will be executed by Butler.
+
 Dataset
 -------
 
@@ -872,7 +913,7 @@ You can retrieve just the psf of the calexp by calling:
 
     psf = butler.get('calexp.psf', dataId={...})
 
-Simiarly, you can put just the psf of the calexp by calling:
+Similarly, you can put just the psf of the calexp by calling:
 
 .. code-block:: python
 
