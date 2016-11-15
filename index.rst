@@ -722,6 +722,34 @@ Getter name inference works the same way (of course, replacing 'set' with 'get')
 
 .. _composite-policy:
 
+Component Subset
+^^^^^^^^^^^^^^^^
+
+If, instead of a single component object, a list of component objects is desired
+for a given component, the keyword 'subset' can be added to the component
+dataset definition, with the value ``True``.
+
+.. code-block:: none
+
+    <datasetType name>: {
+        composite: {
+            <component name>: {
+                subset: True
+                ...
+            }
+            ...
+        }
+    }
+
+When Butler is getting components for a composite and sees this keyword, it will
+use ``Butler.subset`` to find the component (instead of ``Butler.get``, which is
+the normal case). When butler passes the dict of ``ComponentInfo`` to the
+assembler, the ``ComponentInfo.obj`` parameter will be a list of component
+objects.
+
+Note that the generic assembler does not interpret the list of component
+objects; the list will be passed as-is to the object constructor.
+
 Composite Policy
 ^^^^^^^^^^^^^^^^
 
@@ -738,6 +766,7 @@ the policy's dataset definition has a keyword ``composite``. The structure is:
                 getter: <method name of getter>
                 assembler: <importable function to do custom deserialization>
                 disassembler: <importable function to do custom serialization>
+                subset: bool
             }
             ...
         }
@@ -772,6 +801,12 @@ assembler
 
 disassembler
     Similar to assembler but for custom deserialization.
+
+subset
+    Optional. If true, indicates that the object returned for this dataset type
+    should be a list of objects, found by calling
+    ``butler.subset(<dataset type>, dataId)``, where the dataset type is the component
+    datasetType, and the dataId is what was passed into ``butler.get(..., dataId)``.
 
 Component Dataset Location
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
