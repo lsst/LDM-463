@@ -913,7 +913,7 @@ You can retrieve just the psf of the calexp by calling:
 
     psf = butler.get('calexp.psf', dataId={...})
 
-Simiarly, you can put just the psf of the calexp by calling:
+Similarly, you can put just the psf of the calexp by calling:
 
 .. code-block:: python
 
