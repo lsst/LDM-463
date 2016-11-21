@@ -123,7 +123,12 @@ These provide further information about where actual Datasets can be found
 (currently with in-filesystem repositories, the files are always stored under
 the folder indicated by Root).
 
-Root is passed to the Butler by URI.
+Root is passed to the Butler by URI. Currently the only supported storage back
+end is the local filesystem. URI for this may be passed as a relative path
+(``foo/bar``), an absolute path (``/foo/bar``), or explicitly with the ``file``
+schema name (``file:///foo/bar``); only absolute paths are supported when naming
+the file schema explicitly. In the future other schemas will be supported.
+
 
 CfgRoot
 ^^^^^^^
