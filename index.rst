@@ -444,6 +444,33 @@ genres are often (but not necessarily) common to all dataset types with the
 same Python type, making it easy for an application to select which genre is
 applicable to a new dataset type that it is creating.
 
+CameraMapper
+------------
+
+The `CameraMapper` is used by most packages that use the `Butler`.
+
+(There is much to be said about the `CameraMapper` and this section is
+work-in-progress.
+
+Metadata Getter
+^^^^^^^^^^^^^^^
+
+The metadata of an object can be retrieved by adding ``_md`` to the end of the
+dataset type name when calling ``Butler.get``. For example,
+``calexpMetadata = butler.get(calexp_md, ...)``
+
+Exposure component Getters
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+For exposure datasets, the ``wcs``, ``calib``, and ``visit`` information can be
+retrieved by adding ``_`` plus the extension to the dataset type when calling
+``butler.get``, like so:
+
+* ``<datasetType>_wcs``, for example ``wcs = butler.get(calexp_wcs, ...)``
+* ``<datasetType>_calib``, for example ``calib = butler.get(calexp_calib, ...)``
+* ``<datasetType>_visitInfo`` for example
+  ``wcs = butler.get(calexp_visitInfo, ...)``
+
 DataId
 ------
 A class that extends dict. As a dict it contains scientifically meaningful
