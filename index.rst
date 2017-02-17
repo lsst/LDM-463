@@ -381,6 +381,14 @@ It is worth noting that the Storage classes are interfaces and may contain
 datasets (e.g. in-memory storage), but they do not necessarily contain datasets,
 and in some cases absolutely do not contain them.
 
+ButlerLocation
+^^^^^^^^^^^^^^
+
+A ``ButlerLocation`` class instance contains the results of a ``map`` action
+including information from the policy such as what kind of object to instantiate
+from the dataset as well as information for the ``Butler`` such as what Storage
+instance to read the dataset from.
+
 Compressed Datasets
 ^^^^^^^^^^^^^^^^^^^
 
