@@ -340,6 +340,20 @@ parameters are:
       _isLegacyRepository is True, the RepositoryCfg is never persisted; the
       next time the repository is used the cfg will be synthesized again.
 
+When the Storage class can establish a relative path between the RepositoryCfg
+root and a parent URI in the parents list the URI in the parents list is stored
+as a relative path. This makes it easier to move Repositories from one location
+to another.
+
+When copying a repository from one Storage type to another (e.g. from a
+developer to a Swift location) it's possible the parent URIs will have to be
+adjusted. When we add Storage locations this should be considered, and it's
+possible we should write a helper script to support this.
+
+In the ``RepositoryCfg.parents`` property getter the relative paths are
+converted to absolute paths. Everywhere else in the Butler framework absolute
+paths are used so that repository identification is unambiguous.
+
 Mapper
 ------
 
