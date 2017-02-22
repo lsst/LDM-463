@@ -330,15 +330,6 @@ parameters are:
     * dict (nested)
     * This is policy to be added to the rest of the policy loaded by the butler
       for this repository.
-* ``_isLegacyRepository``
-    * not persisted, required in instantiated RepositoryCfg (but is instantiated
-      via the cfg reader).
-    * bool
-    * this is used to mark when a RepositoryCfg was synthesized by reading an
-      old-style repository filesystem layout, including reading the _mapper
-      file and populating root from the repository's root. In the case where
-      _isLegacyRepository is True, the RepositoryCfg is never persisted; the
-      next time the repository is used the cfg will be synthesized again.
 
 Mapper
 ------
