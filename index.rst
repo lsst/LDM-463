@@ -516,6 +516,19 @@ exists in the repository. But with a bypass function the Butler can not know
 what object is actually needed and for example some mappers return information
 derived from the `location.dataId` and do not actually need the object itself.
 
+Registry
+--------
+
+The mapper may use a Registry to look up data about an object when performing a
+query. Currently this can be an sqlite3 database, the class that uses this is
+``SqliteRegistry``. Or if no sqlite3 database is found in the repository, Butler
+will create a ``PosixRegistry`` class to perform data lookups on the repository.
+
+If a repository does not have a sqlite3 registry then the Butler will look in
+parent repositories for a parent with an ``SqliteRegistry`` and if/when one is
+found will stop looking, and pass that registry to the Mapper that is being
+initialized as the ``parentRegistry`` init arg.
+
 DataId
 ------
 A class that extends dict. As a dict it contains scientifically meaningful
