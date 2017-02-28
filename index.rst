@@ -18,7 +18,6 @@ underneath, and we plan to have a DAX API which operates as a Butler bridge
 service. This last service will serve primarily as a proxy for remote
 applications which may be coded in any language.
 
-
 Butler
 ======
 
