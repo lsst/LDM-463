@@ -165,9 +165,9 @@ The Butler init function takes a list of input and output repositories (see
 below for a description of inputs and outputs) that are used as locations for
 i/o.
 
-The ``Butler`` (version 2) initializer API is ``Butler(inputs=None,
-outputs=None)``. Values for both ``inputs`` and ``outputs`` can be an instance
-of the ``RepositoryArgs`` class, a ``dict`` that will be used to initialize a
+The new butler initializer API is ``Butler(inputs=None, outputs=None)``. Values
+for both ``inputs`` and ``outputs`` can be an instance of the
+``RepositoryArgs`` class, a ``dict`` that will be used to initialize a
 ``RepositoryArgs`` instance, or can be a string that is treated as a URI to a
 repository. In inputs it must refer to a persisted ``RepositoryCfg`` and in
 outputs it can refer to an existing ``RepositoryCfg`` or can be a location to
