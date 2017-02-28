@@ -172,7 +172,7 @@ for both ``inputs`` and ``outputs`` can be an instance of the
 repository. In inputs it must refer to a persisted ``RepositoryCfg`` and in
 outputs it can refer to an existing ``RepositoryCfg`` or can be a location to
 create a new repository. Additionally, the value can be either a single item or
-many items in a sequence container.
+a sequence of one or more items.
 
 Inputs and Outputs
 ^^^^^^^^^^^^^^^^^^
