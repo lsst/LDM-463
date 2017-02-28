@@ -499,13 +499,13 @@ Bypass Functions
 
 If a ``CameraMapper`` subclass wants to use a different deserializer than the
 standard Butler deserialization schemes, it can implement a function that starts
-with ``bypass`` and ends with the datasetType name. The function signature must
+with ``bypass_`` followed by the datasetType name. The function signature must
 be ``(self, datasetType, pythonType, location, dataId)`` where ``datasetType``
 is the datasetType name (matches the policy), ``pythonType`` is a class instance
 that the policy specifies for the datasetType's python type, ``location`` is a
-``ButlerLocation``, and ``dataId`` is the the ``dataId`` that was used to map
-the object. For example to implement an alternate reader for the ``calexp``
-dataset, create a function
+``ButlerLocation``, and ``dataId`` is the the ``DataId`` instance that was used
+to map the object. For example to implement an alternate reader for the
+``calexp`` dataset, create a function
 ``def bypass_calexp(self, datasetType, pythonType, location, dataId)`` that
 returns the read object.
 
