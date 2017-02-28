@@ -79,6 +79,62 @@ parents are stored in the repository cfg.
     and children) that use the CameraMapper will be managed by a separate Repository
     class in Butler. Searching parents will be executed by Butler.
 
+CameraMapper no longer Accesses Parents Directly
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+In New Butler the CameraMapper does not access parents directly (via _parent
+symlinks). In the cases where child repositories need to access elements of
+parent repositories, those elements are passed to the children:
+
+* Parent Registry: when a Repository does not have its own sqlite Registry, it
+  may use the sqlite Registry of its parent to perform lookups. To provide this,
+  the Butler searches the Repository's parent Repositories (depth first) until a
+  Repository with an sqlite Registry is found, and that Registry is passed to
+  the Repository and to its mapper as the "parent Registry". Right now the rule
+  is very simplistic (simply search for and return the first-found sqlite
+  registry). We could restrict the search so that some registries are passed
+  over if they don't match the child Repository. I think it would be worth
+  waiting and designing this with the output registry feature we've discussed.
+* Parent mapper: new output repositories used to discover their mapper by using
+  the same mapper as the input Repository (via the `outputRoot` mechanism). Now,
+  a "default mapper" is discovered by inspecting the input repositories. If all
+  the input repositories use the same mapper then a default mapper is inferred
+  and new output repositories will use that same mapper. If input repositories
+  use different mappers then a default mapper can not be established and new
+  Repositories must specify a mapper with their RepositoryArgs. We have discussed
+  that some mappers are nonsensical as candidates for default mapper, no fitlering
+  of mappers is implemented yet.
+* Mapper init: To allow Butler to set parameters that are used in
+  ``CameraMapper.__init__`` (e.g. the mapper's registry, which may be a parent's
+  registry), mappers should not be initialized when passed into Butler. The
+  mapper (passed in via a dict or a RepositoryArgs instance) should be a Class
+  object or an importable string.
+
+ButlerLocation Requires Storage Interface
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A mapper may manage more than one Storage location (e.g. ``CameraMapper``'s
+``calibRoot`` can point at a second Storage location). Because of this,
+ButlerLocation now requires a Storage class instance that is the storage to
+which the location refers.
+
+A ``ButlerLocation`` contains a location (path) within a Storage Interface. The
+Storage Interface keeps track of the root, so the location needs only the path
+from root. As a result, ``ButlerLocaiton.getLocations()`` returns the location
+without the root.
+
+To get the location prepeneded with root (root+location), use
+``ButlerLocation.getLocationsWithRoot()``.
+
+When initializing a ``ButlerLocation`` (during a map), a Storage Interface
+instance must be passed to ``ButlerLocation.__init__(...)``
+
+Mappers Should Provide Access to their Registry
+"""""""""""""""""""""""""""""""""""""""""""""""
+Mappers should provide access to their registry via the method
+``getRegistry(self)``. This allows mappers in child repositories to use the
+registry from a parent.
+
 Dataset
 -------
 
@@ -165,13 +221,13 @@ below for a description of inputs and outputs) that are used as locations for
 i/o.
 
 The new butler initializer API is ``Butler(inputs=None, outputs=None)``. Values
-for both ``inputs`` and ``outputs`` can be an instance of the
-``RepositoryArgs`` class, a ``dict`` that will be used to initialize a
-``RepositoryArgs`` instance, or can be a string that is treated as a URI to a
-repository. In inputs it must refer to a persisted ``RepositoryCfg`` and in
-outputs it can refer to an existing ``RepositoryCfg`` or can be a location to
-create a new repository. Additionally, the value can be either a single item or
-a sequence of one or more items.
+for both ``inputs`` and ``outputs`` can be an instance of the ``RepositoryArgs``
+class, a ``dict`` that will be used to initialize a ``RepositoryArgs`` instance,
+or can be a string that is treated as the root (a URI to a repository). In
+inputs, root must refer to a location that contains a persisted
+``RepositoryCfg`` and in outputs it can refer to an existing ``RepositoryCfg``
+or can be a location to create a new repository. Additionally, the value can be
+either a single item or a sequence of one or more items.
 
 Inputs and Outputs
 ^^^^^^^^^^^^^^^^^^
@@ -340,19 +396,31 @@ parameters are:
       _isLegacyRepository is True, the RepositoryCfg is never persisted; the
       next time the repository is used the cfg will be synthesized again.
 
+Persisted Parent Path is Relative When Possible
+"""""""""""""""""""""""""""""""""""""""""""""""
+
 When the Storage class can establish a relative path between the RepositoryCfg
-root and a parent URI in the parents list the URI in the parents list is stored
+root and a parent URI in the parents list, the URI in the parents list is stored
 as a relative path. This makes it easier to move Repositories from one location
 to another.
+
+In the ``RepositoryCfg.parents`` property getter the relative paths are
+converted to absolute paths. Everywhere else in the Butler framework absolute
+paths are used so that repository identification is unambiguous.
+
+``RepositoryCfg`` uses ``Storage.absolutePath(...)`` and
+``Storage.relativePath(...)`` to try to get absolute and relative paths between
+two URIs.
+
+
+Moving Repositories and RepositoryCfgs
+""""""""""""""""""""""""""""""""""""""
 
 When copying a repository from one Storage type to another (e.g. from a
 developer to a Swift location) it's possible the parent URIs will have to be
 adjusted. When we add Storage locations this should be considered, and it's
 possible we should write a helper script to support this.
 
-In the ``RepositoryCfg.parents`` property getter the relative paths are
-converted to absolute paths. Everywhere else in the Butler framework absolute
-paths are used so that repository identification is unambiguous.
 
 Mapper
 ------
@@ -364,36 +432,41 @@ is ``CameraMapper``.
 
 Typically a Mapper instance is configured by the Policy.
 
-Storage
--------
+Storage Layer
+-------------
 
-.. warning::
+Storage is the abstraction layer that separates Repositories in persistant
+storage from the parts of the framework that use the data in the Repository.
 
-    This section describes New Butler classes, and should be considered
-    internal-only, non-public API for the time being.
+There is a Storage class that is a factory and convenience layer and Storage
+Interface classes that implement access to different types of storage types
+such as the local filesystem or remote object stores like Swift.
 
-Storage is intended to be a protocol (or abstract base class TBD) that defines
-the api for concrete Storage classes that implement read and write access.
-Storage classes can be added by client code and are to be pluggable; i.e.
-provided by client code.
-
-Concrete classes include support for one of:
-
-* file system (FilesystemStorage or PosixStorage)
-* database (DatabaseStorage)
-* in-memory (InMemoryStorage)
-* stream (StreamStorage)
-* others, can be implemented by 3rd party users
-
-Concrete Storage classes are responsible for implementing:
+Storage Interface classes are responsible for implementing:
 
  * Concurrency control that cooperates with their actual storage. Handle-to-
  * stored-Parent for persisted data so that the parent may be found at load
    time.
 
-It is worth noting that the Storage classes are interfaces and may contain
-datasets (e.g. in-memory storage), but they do not necessarily contain datasets,
-and in some cases absolutely do not contain them.
+Storage Interface classes are interfaces and may contain datasets (e.g.
+in-memory storage), but they do not necessarily contain datasets.
+
+Storage Class
+^^^^^^^^^^^^^
+
+Storage is a  factory class for Storage Interface instances. Storage interface
+classes register themselves with the Storage class by calling
+``Storage.registerStorageClass(scheme, cls)`` where ``scheme`` matches the
+scheme of the URI that describes a Repository root, and ``cls`` is the class
+object that implements the ``StorageInterface`` protocol.
+
+Storage also is a helper for accessing storage interface functions. Without it,
+users would have to call e.g.
+``Storage.makeFromUri(uri).putRepositoryCfg(uri, cfg)``, whereas with the helper
+in Storage, the user can call ``Storage.putRepositoryCfg(uri, cfg)`` and Storage
+handles making a temporary Storage Interface instance inside the body of the
+function.
+
 
 Storage Interface Protocol
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
