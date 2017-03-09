@@ -438,15 +438,12 @@ Storage Layer
 Storage is the abstraction layer that separates Repositories in persistant
 storage from the parts of the framework that use the data in the Repository.
 
-There is a Storage class that is a factory and convenience layer and Storage
-Interface classes that implement access to different types of storage types
-such as the local filesystem or remote object stores like Swift.
+There is a ``Storage`` class that is a factory and convenience layer, and
+Storage Interface classes that implement access to different types of storage
+types such as the local filesystem or remote object stores like Swift.
 
-Storage Interface classes are responsible for implementing:
-
- * Concurrency control that cooperates with their actual storage. Handle-to-
- * stored-Parent for persisted data so that the parent may be found at load
-   time.
+Storage Interface classes are responsible for implementing concurrency control
+that cooperates with their actual storage.
 
 Storage Interface classes are interfaces and may contain datasets (e.g.
 in-memory storage), but they do not necessarily contain datasets.
