@@ -228,8 +228,14 @@ class, a ``dict`` that will be used to initialize a ``RepositoryArgs`` instance,
 or can be a string that is treated as the root (a URI to a repository). In
 inputs, root must refer to a location that contains a persisted
 ``RepositoryCfg`` and in outputs it can refer to an existing ``RepositoryCfg``
-or can be a location to create a new repository. Additionally, the value can be
-either a single item or a sequence of one or more items.
+or can be a location to create a new repository. The value can be either a
+single item or a sequence of one or more items.
+
+Note that with the old Butler init API
+(``Butler.__init__(root, mapper, **mapperArgs)``), the location indicated by
+``root`` does not have to contain a ``RepositoryCfg``, and Butler will not
+write one at that location. Internally Butler will create an in-memory only
+``RepositoryCfg`` to use that Repository.
 
 Inputs and Outputs
 ^^^^^^^^^^^^^^^^^^
