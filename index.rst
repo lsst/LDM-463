@@ -18,7 +18,6 @@ underneath, and we plan to have a DAX API which operates as a Butler bridge
 service. This last service will serve primarily as a proxy for remote
 applications which may be coded in any language.
 
-
 Butler
 ======
 
@@ -80,6 +79,62 @@ parents are stored in the repository cfg.
     and children) that use the CameraMapper will be managed by a separate Repository
     class in Butler. Searching parents will be executed by Butler.
 
+CameraMapper no longer Accesses Parents Directly
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+In New Butler the CameraMapper does not access parents directly (via _parent
+symlinks). In the cases where child repositories need to access elements of
+parent repositories, those elements are passed to the children:
+
+* Parent Registry: when a Repository does not have its own sqlite Registry, it
+  may use the sqlite Registry of its parent to perform lookups. To provide this,
+  the Butler searches the Repository's parent Repositories (depth first) until a
+  Repository with an sqlite Registry is found, and that Registry is passed to
+  the Repository and to its mapper as the "parent Registry". Right now the rule
+  is very simplistic (simply search for and return the first-found sqlite
+  registry). We could restrict the search so that some registries are passed
+  over if they don't match the child Repository. I think it would be worth
+  waiting and designing this with the output registry feature we've discussed.
+* Parent mapper: new output repositories used to discover their mapper by using
+  the same mapper as the input Repository (via the `outputRoot` mechanism). Now,
+  a "default mapper" is discovered by inspecting the input repositories. If all
+  the input repositories use the same mapper then a default mapper is inferred
+  and new output repositories will use that same mapper. If input repositories
+  use different mappers then a default mapper can not be established and new
+  Repositories must specify a mapper with their RepositoryArgs. We have discussed
+  that some mappers are nonsensical as candidates for default mapper, no fitlering
+  of mappers is implemented yet.
+* Mapper init: To allow Butler to set parameters that are used in
+  ``CameraMapper.__init__`` (e.g. the mapper's registry, which may be a parent's
+  registry), mappers should not be initialized when passed into Butler. The
+  mapper (passed in via a dict or a RepositoryArgs instance) should be a Class
+  object or an importable string.
+
+ButlerLocation Requires Storage Interface
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A mapper may manage more than one Storage location (e.g. ``CameraMapper``'s
+``calibRoot`` can point at a second Storage location). Because of this,
+ButlerLocation now requires a Storage class instance that is the storage to
+which the location refers.
+
+A ``ButlerLocation`` contains a location (path) within a Storage Interface. The
+Storage Interface keeps track of the root, so the location needs only the path
+from root. As a result, ``ButlerLocaiton.getLocations()`` returns the location
+without the root.
+
+To get the location prepeneded with root (root+location), use
+``ButlerLocation.getLocationsWithRoot()``.
+
+When initializing a ``ButlerLocation`` (during a map), a Storage Interface
+instance must be passed to ``ButlerLocation.__init__(...)``
+
+Mappers Should Provide Access to their Registry
+"""""""""""""""""""""""""""""""""""""""""""""""
+Mappers should provide access to their registry via the method
+``getRegistry(self)``. This allows mappers in child repositories to use the
+registry from a parent.
+
 Dataset
 -------
 
@@ -113,6 +168,8 @@ Access classes as well as its parent & peer Repositories.
 If the configuration arguments point to a repository that already exists then
 the arguments must be consistent with the stored repository configuration. This
 includes which mapper to use and what the parents of that repository are.
+Butler checks for this, and if a mismatch is detected it will raise a
+RuntimeError in ``Butler.__init__``.
 
 Root
 ^^^^
@@ -167,11 +224,18 @@ i/o.
 
 The new butler initializer API is ``Butler(inputs=None, outputs=None)``. Values
 for both ``inputs`` and ``outputs`` can be an instance of the ``RepositoryArgs``
-class or can be a string. Additionally, the value can be either a single item or
-many items in a sequence container. If the value is only a string, it is treated
-as a URI. In inputs it must refer to a persisted ``RepositoryCfg`` and in
-outputs it can refer to an existing ``RepositoryCfg`` or can be a location to
-create a new repository.
+class, a ``dict`` that will be used to initialize a ``RepositoryArgs`` instance,
+or can be a string that is treated as the root (a URI to a repository). In
+inputs, root must refer to a location that contains a persisted
+``RepositoryCfg`` and in outputs it can refer to an existing ``RepositoryCfg``
+or can be a location to create a new repository. The value can be either a
+single item or a sequence of one or more items.
+
+Note that with the old Butler init API
+(``Butler.__init__(root, mapper, **mapperArgs)``), the location indicated by
+``root`` does not have to contain a ``RepositoryCfg``, and Butler will not
+write one at that location. Internally Butler will create an in-memory only
+``RepositoryCfg`` to use that Repository.
 
 Inputs and Outputs
 ^^^^^^^^^^^^^^^^^^
@@ -331,6 +395,32 @@ parameters are:
     * This is policy to be added to the rest of the policy loaded by the butler
       for this repository.
 
+Persisted Parent Path is Relative When Possible
+"""""""""""""""""""""""""""""""""""""""""""""""
+
+When the Storage class can establish a relative path between the RepositoryCfg
+root and a parent URI in the parents list, the URI in the parents list is stored
+as a relative path. This makes it easier to move Repositories from one location
+to another.
+
+In the ``RepositoryCfg.parents`` property getter the relative paths are
+converted to absolute paths. Everywhere else in the Butler framework absolute
+paths are used so that repository identification is unambiguous.
+
+``RepositoryCfg`` uses ``Storage.absolutePath(...)`` and
+``Storage.relativePath(...)`` to try to get absolute and relative paths between
+two URIs.
+
+
+Moving Repositories and RepositoryCfgs
+""""""""""""""""""""""""""""""""""""""
+
+When copying a repository from one Storage type to another (e.g. from a
+developer to a Swift location) it's possible the parent URIs will have to be
+adjusted. When we add Storage locations this should be considered, and it's
+possible we should write a helper script to support this.
+
+
 Mapper
 ------
 
@@ -341,36 +431,285 @@ is ``CameraMapper``.
 
 Typically a Mapper instance is configured by the Policy.
 
-Storage
-^^^^^^^
+Storage Layer
+-------------
 
-.. warning::
+Storage is the abstraction layer that separates Repositories in persistant
+storage from the parts of the framework that use the data in the Repository.
 
-    This section describes New Butler classes, and should be considered
-    internal-only, non-public API for the time being.
+There is a ``Storage`` class that is a factory and convenience layer, and
+Storage Interface classes that implement access to different types of storage
+types such as the local filesystem or remote object stores like Swift.
 
-Storage is intended to be a protocol (or abstract base class TBD) that defines
-the api for concrete Storage classes that implement read and write access.
-Storage classes can be added by client code and are to be pluggable; i.e.
-provided by client code.
+Storage Interface classes are responsible for implementing concurrency control
+that cooperates with their actual storage.
 
-Concrete classes include support for one of:
+Storage Interface classes are interfaces and may contain datasets (e.g.
+in-memory storage), but they do not necessarily contain datasets.
 
-* file system (FilesystemStorage or PosixStorage)
-* database (DatabaseStorage)
-* in-memory (InMemoryStorage)
-* stream (StreamStorage)
-* others, can be implemented by 3rd party users
+Storage Class
+^^^^^^^^^^^^^
 
-Concrete Storage classes are responsible for implementing:
+Storage is a  factory class for Storage Interface instances. Storage interface
+classes register themselves with the Storage class by calling
+``Storage.registerStorageClass(scheme, cls)`` where ``scheme`` matches the
+scheme of the URI that describes a Repository root, and ``cls`` is the class
+object that implements the ``StorageInterface`` protocol.
 
- * Concurrency control that cooperates with their actual storage. Handle-to-
- * stored-Parent for persisted data so that the parent may be found at load
-   time.
+Storage also is a helper for accessing storage interface functions. Without it,
+users would have to call e.g.
+``Storage.makeFromUri(uri).putRepositoryCfg(uri, cfg)``, whereas with the helper
+in Storage, the user can call ``Storage.putRepositoryCfg(uri, cfg)`` and Storage
+handles making a temporary Storage Interface instance inside the body of the
+function.
 
-It is worth noting that the Storage classes are interfaces and may contain
-datasets (e.g. in-memory storage), but they do not necessarily contain datasets,
-and in some cases absolutely do not contain them.
+
+Storage Interface Protocol
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Butler uses Storage Interface classes and a Storage factory class to allow
+it to work with files that may be located anywhere (not just on the local
+posix filesystem, e.g. in a Swift storage). To support this a Storage Interface
+definition has been added.
+Storage-type specific classes should be used instead of calling filesystem
+directly to access a repository. For example, an instance of ``PosixStorage`` is
+used to access the filesystem. A ``SwiftStorage`` instance will be used to
+access a Repository in a Swift storage container. The Storage interface is still
+"wet paint" but currently includes the following functions. When creating new
+Storage Interface classes, these must be implemented.
+
+.. code-block:: python
+
+    def write(self, butlerLocation, obj):
+        """Writes an object to a location and persistence format specified by ButlerLocation
+
+        Parameters
+        ----------
+        butlerLocation : ButlerLocation
+            The location & formatting for the object to be written.
+        obj : object instance
+            The object to be written.
+        """
+
+    def read(self, butlerLocation):
+        """Read from a butlerLocation.
+
+        Parameters
+        ----------
+        butlerLocation : ButlerLocation
+            The location & formatting for the object(s) to be read.
+
+        Returns
+        -------
+        A list of objects as described by the butler location. One item for
+        each location in butlerLocation.getLocations()
+        """
+
+    def getLocalFile(self, path):
+        """Get the path to a local copy of the file, downloading it to a
+        temporary if needed.
+
+        Parameters
+        ----------
+        A path the the file in storage, relative to root.
+
+        Returns
+        -------
+        A path to a local copy of the file. May be the original file (if
+        storage is local).
+        """
+
+    def exists(self, location):
+        """Check if location exists.
+
+        Parameters
+        ----------
+        location : ButlerLocation or string
+            A a string or a ButlerLocation that describes the location of an
+            object in this storage.
+
+        Returns
+        -------
+        bool
+            True if exists, else False.
+        """
+
+    def instanceSearch(self, path):
+        """Search for the given path in this storage instance.
+
+        If the path contains an HDU indicator (a number in brackets before the
+        dot, e.g. 'foo.fits[1]', this will be stripped when searching and so
+        will match filenames without the HDU indicator, e.g. 'foo.fits'. The
+        path returned WILL contain the indicator though, e.g. ['foo.fits[1]'].
+
+        Parameters
+        ----------
+        path : string
+            A filename (and optionally prefix path) to search for within root.
+
+        Returns
+        -------
+        string or None
+            The location that was found, or None if no location was found.
+        """
+
+    @staticmethod
+    def search(root, path, searchParents=False):
+        """Look for the given path in the current root.
+
+        Also supports searching for the path in Butler v1 repositories by
+        following the Butler v1 _parent symlink
+
+        If the path contains an HDU indicator (a number in brackets, e.g.
+        'foo.fits[1]', this will be stripped when searching and so
+        will match filenames without the HDU indicator, e.g. 'foo.fits'. The
+        path returned WILL contain the indicator though, e.g. ['foo.fits[1]'].
+
+        Parameters
+        ----------
+        root : string
+            The path to the root directory.
+        path : string
+            The path to the file within the root directory.
+        searchParents : bool, optional
+            For Butler v1 repositories only, if true and a _parent symlink
+            exists, then the directory at _parent will be searched if the file
+            is not found in the root repository. Will continue searching the
+            parent of the parent until the file is found or no additional
+            parent exists.
+
+        Returns
+        -------
+        string or None
+            The location that was found, or None if no location was found.
+        """
+
+    def copyFile(self, fromLocation, toLocation):
+        """Copy a file from one location to another on the local filesystem.
+
+        Parameters
+        ----------
+        fromLocation : path
+            Path and name of existing file.
+         toLocation : path
+            Path and name of new file.
+
+        Returns
+        -------
+        None
+        """
+
+    def locationWithRoot(self, location):
+        """Get the full path to the location.
+
+        :param location:
+        :return:
+        """
+
+    @staticmethod
+    def getRepositoryCfg(uri):
+        """Get a persisted RepositoryCfg
+
+        Parameters
+        ----------
+        uri : URI or path to a RepositoryCfg
+            Description
+
+        Returns
+        -------
+        A RepositoryCfg instance or None
+        """
+
+    @staticmethod
+    def putRepositoryCfg(cfg, loc=None):
+        """Serialize a RepositoryCfg to a location.
+
+        When loc == cfg.root, the RepositoryCfg is to be writtenat the root
+        location of the repository. In that case, root is not written, it is
+        implicit in the location of the cfg. This allows the cfg to move from
+        machine to machine without modification.
+
+        Parameters
+        ----------
+        cfg : RepositoryCfg instance
+            The RepositoryCfg to be serailized.
+        loc : None, optional
+            The location to write the RepositoryCfg. If loc is None, the
+            location will be read from the root parameter of loc.
+
+        Returns
+        -------
+        None
+        """
+
+    @staticmethod
+    def getMapperClass(root):
+        """Get the mapper class associated with a repository root.
+
+        Parameters
+        ----------
+        root : string
+            The location of a persisted ReositoryCfg is (new style repos).
+
+        Returns
+        -------
+        A class object or a class instance, depending on the state of the
+        mapper when the repository was created.
+        """
+
+    # Optional: Only needs to work if relative paths are sensical on this
+    # storage type and for the case where fromPath and toPath are of the same
+    # storage type.
+    @staticmethod
+    def relativePath(fromPath, toPath):
+        """Get a relative path from a location to a location.
+
+        Parameters
+        ----------
+        fromPath : string
+            A path at which to start. It can be a relative path or an
+            absolute path.
+        toPath : string
+            A target location. It can be a relative path or an absolute path.
+
+        Returns
+        -------
+        string
+            A relative path that describes the path from fromPath to toPath.
+        """
+
+    # Optional: Only needs to work if relative paths and absolute paths are
+    # sensical on this storage type and for the case where fromPath and toPath
+    # are of the same storage type.
+    @staticmethod
+    def absolutePath(fromPath, relativePath):
+        """Get an absolute path for the path from fromUri to toUri
+
+        Parameters
+        ----------
+        fromPath : the starting location
+            A location at which to start. It can be a relative path or an
+            absolute path.
+        relativePath : the location relative to fromPath
+            A relative path.
+
+        Returns
+        -------
+        string
+            Path that is an absolute path representation of fromPath +
+            relativePath, if one exists. If relativePath is absolute or if
+            fromPath is not related to relativePath then relativePath will be
+            returned.
+         """
+
+
+ButlerLocation
+--------------
+
+A ``ButlerLocation`` class instance contains the results of a ``map`` action
+including information from the policy such as what kind of object to instantiate
+from the dataset as well as information for the ``Butler`` such as what Storage
+instance to read the dataset from.
 
 Compressed Datasets
 ^^^^^^^^^^^^^^^^^^^
@@ -461,6 +800,42 @@ retrieved by adding ``_`` plus the extension to the dataset type when calling
 * ``<datasetType>_calib``, for example ``calib = butler.get(calexp_calib, ...)``
 * ``<datasetType>_visitInfo`` for example
   ``wcs = butler.get(calexp_visitInfo, ...)``
+
+Bypass Functions
+^^^^^^^^^^^^^^^^
+
+If a ``CameraMapper`` subclass wants to use a different deserializer than the
+standard Butler deserialization schemes, it can implement a function that starts
+with ``bypass_`` followed by the datasetType name. The function signature must
+be ``(self, datasetType, pythonType, location, dataId)`` where ``datasetType``
+is the datasetType name (matches the policy), ``pythonType`` is a class instance
+that the policy specifies for the datasetType's python type, ``location`` is a
+``ButlerLocation``, and ``dataId`` is the the ``DataId`` instance that was used
+to map the object. For example to implement an alternate reader for the
+``calexp`` dataset, create a function
+``def bypass_calexp(self, datasetType, pythonType, location, dataId)`` that
+returns the read object.
+
+Bypass functions do not participate in the Butler's deferred-read mechanism.
+This is because with multiple repositories the Butler may successfully map the
+ButlerLocation, but the object needed may actually exist in a parent repository.
+Normally the Butler can accommodate this by looking to see if the located object
+exists in the repository. But with a bypass function the Butler can not know
+what object is actually needed and for example some mappers return information
+derived from the `location.dataId` and do not actually need the object itself.
+
+Registry
+--------
+
+The mapper may use a Registry to look up data about an object when performing a
+query. Currently this can be an sqlite3 database, the class that uses this is
+``SqliteRegistry``. Or if no sqlite3 database is found in the repository, Butler
+will create a ``PosixRegistry`` class to perform data lookups on the repository.
+
+If a repository does not have a sqlite3 registry then the Butler will look in
+parent repositories for a parent with an ``SqliteRegistry`` and if/when one is
+found will stop looking, and pass that registry to the Mapper that is being
+initialized as the ``parentRegistry`` init arg.
 
 DataId
 ------
