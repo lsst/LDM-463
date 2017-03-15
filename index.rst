@@ -168,6 +168,8 @@ Access classes as well as its parent & peer Repositories.
 If the configuration arguments point to a repository that already exists then
 the arguments must be consistent with the stored repository configuration. This
 includes which mapper to use and what the parents of that repository are.
+Butler checks for this, and if a mismatch is detected it will raise a
+RuntimeError in ``Butler.__init__``.
 
 Root
 ^^^^
