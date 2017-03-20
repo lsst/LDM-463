@@ -459,11 +459,16 @@ scheme of the URI that describes a Repository root, and ``cls`` is the class
 object that implements the ``StorageInterface`` protocol.
 
 Storage also is a helper for accessing storage interface functions. Without it,
-users would have to call e.g.
-``Storage.makeFromUri(uri).putRepositoryCfg(uri, cfg)``, whereas with the helper
-in Storage, the user can call ``Storage.putRepositoryCfg(uri, cfg)`` and Storage
-handles making a temporary Storage Interface instance inside the body of the
-function.
+users would have to call e.g. ``Storage.makeFromUri(uri).putRepositoryCfg(uri,
+cfg)``, whereas with the helper in Storage, the user can call
+``Storage.putRepositoryCfg(uri, cfg)`` and Storage handles making a temporary
+Storage Interface instance inside the body of the function.
+
+When getting a ``RepositoryCfg`` by calling ``Storage.getRepositoryCfg`` the
+cfg is cached (key is the URI), so that multiple lookups are not performed on
+storages (that might be remote and therefore expensive to fetch).
+RepositoryCfgs are not supposed to change once they are created so this should
+not lead to stale data.
 
 StorageInterface
 ^^^^^^^^^^^^^^^^
