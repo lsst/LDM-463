@@ -477,11 +477,63 @@ directly to access a repository. For example, an instance of ``PosixStorage``
 is used to access the filesystem. A ``SwiftStorage`` instance will be used to
 access a Repository in a Swift storage container.
 
-The storage interface is still settling. The StorageInterface abstract base
+Some ``StorageInterface`` subclasses are provided with Butler in daf_persistence,
+they are discussed below. Others may be added by registering them with Storage
+using its ``registerStorageClass`` function.
+
+During ``Butler.__init__``, for each repository a ``StorageInterface`` subclass
+is selected according to the scheme of the root URI passed into
+``Butler.__init__`` (via the ``inputs`` and ``outputs`` arguments). For example
+``root='swift://<swift parameters>'`` will select ``SwiftStorage`` interface
+that is registered with Storage like
+``Storage.registerStorageClass(scheme='swift', cls=SwiftStorage)``
+
+The storage interface is still settling. The ``StorageInterface`` abstract base
 class should be a superclass of all storage interfaces to ensure completeness
 and help discoverability if/when the interface evolves.
 
-The StorageInterface api is described in the class documentation.
+The StorageInterface API is described in the class documentation.
+
+PosixStorage
+""""""""""""
+
+``PosixStorage`` is the interface for file-based repositories on the local
+filesystem. This interface will be used for root that are relative paths,
+absolute paths that start with a single slash, and URIs that start with
+``file:///`` (these will be treated as absolute paths).
+
+``PosixStorage`` contains special functions that are used with 'old' butler
+repositories. Butler framework classes use this API. These special functions
+are not part of the StorageInterface API.
+
+SwiftStorage
+""""""""""""
+
+``SwiftStorage`` is the interface for object-based repositories in Swift object
+stores. This interface will be used for URIs that start with ``swift:///``.
+
+To authorize the connection, the following environment variables must be set:
+
+* ``SWIFT_USERNAME`` The username to use when authorizing the connection.
+* ``SWIFT_PASSWORD`` The password to use when authorizing the connection.
+
+The URI form is as follows:
+
+.. code-block:: none
+
+    swift://[URL without 'http://']/[Object API Version]/[tenant name (account)]/[container]
+
+For example:
+
+.. code-block:: none
+
+    swift://nebula.ncsa.illinois.edu:5000/v2.0/lsst/my_container
+
+Typically a single container holds a single repository, with an object called
+``repositoryCfg.yaml`` in the container. There can be exceptions, for example
+``CALIB`` is a second storage location used by ``CameraMapper`` and may not
+contain a repository cfg, instead all the needed details are specified by the
+primary storage location used by ``CameraMapper``.
 
 ButlerLocation
 --------------
