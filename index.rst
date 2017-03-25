@@ -540,6 +540,22 @@ Typically a single container holds a single repository, with an object called
 contain a repository cfg, instead all the needed details are specified by the
 primary storage location used by ``CameraMapper``.
 
+SwiftStorage works by downloading objects to temporary files (python
+``tempfile.NamedTemporaryFile``), and using PosixStorage to read the file
+to instantiate the python object.
+
+With NamedTemporaryFile handles, the file is deleted when the handle is deleted
+(or explicitly closed). In some cases the file object should not be deleted
+while the object exists (for example with an sqlite3 database file). To prevent
+this from happening, the handle is monkey patched onto the object before it
+is returned from ``SwiftStorage.read``.
+
+Swift storage also caches the handle to the temporary file in case the object
+is read again, thus saving time by not having to re-download the object. This
+may not serve in place of monkey patching the file: this caching feature may
+need to be optional (if the temporary file storage is getting too big), and it
+is possible that objects could still exist after the SwiftStorage is destroyed.
+
 ButlerLocation
 --------------
 
