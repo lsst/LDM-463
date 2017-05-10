@@ -719,16 +719,43 @@ Registry
 --------
 
 The mapper may use a Registry to look up data about an object when performing a
+<<<<<<< HEAD
 query. Currently this can be an sqlite3 database, the class that uses this is
 ``SqliteRegistry``. Or if no sqlite3 database is found in the repository and
 the repository is on the local filesystem (using a ``PosixStorage`` interface),
 Butler will create a ``PosixRegistry`` class to perform data lookups on the
 repository.
+||||||| merged common ancestors
+query. Currently this can be an sqlite3 database, the class that uses this is
+``SqliteRegistry``. Or if no sqlite3 database is found in the repository, Butler
+will create a ``PosixRegistry`` class to perform data lookups on the repository.
+=======
+query. Currently this can be an sqlite3 database (using the ``SqliteRegistry``
+class) or a PostgreSQL database (using the ``PgsqlRegistry`` class). If no
+database (sqlite3 or PostgreSQL) is found in the repository, the Butler
+will create a ``PosixRegistry`` class to perform data lookups on the repository.
+>>>>>>> Registry: add PostgreSQL support information
 
-If a repository does not have a sqlite3 registry then the Butler will look in
-parent repositories for a parent with an ``SqliteRegistry`` and if/when one is
+If a repository does not have a database registry then the Butler will look in
+parent repositories for a parent with a suitable database registry and if/when
+one is
 found will stop looking, and pass that registry to the Mapper that is being
 initialized as the ``parentRegistry`` init arg.
+
+PostgreSQL registry
+^^^^^^^^^^^^^^^^^^^
+
+PostgreSQL registries can be used by supplying in the repository a YAML file
+whose name is suffixed with ``.pgsql`` (typically ``registry.pgsql`` for the
+raw data), containing the following:
+
+* ``host``: Database hostname.
+* ``port``: Database port.
+* ``user``: Database username.
+* ``database``: Database name to use.
+
+In addition, an entry, ``password``, may be used with the database password.
+
 
 DataId
 ------
