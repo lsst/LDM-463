@@ -138,7 +138,7 @@ registry from a parent.
 Dataset
 -------
 
-A dataset is the persisted form of an in-memory object. It could be a single
+A dataset is the persisted form of an in-memory object; it could be a single
 item, a composite, or a collection. Examples: `int`/`long`, `PropertySet`,
 `ExposureF`, WCS, PSF, `set`/`list`/`dict`.
 
@@ -918,42 +918,24 @@ Composite Datasets
 
 There need not be a one-to-one relationship between an instance of serialized
 data, such as in a single FITS file, and datasets (where the definition of a
-dataset is “the persisted form of an in-memory object. It could be a single
+dataset is “the persisted form of an in-memory object; it could be a single
 item, a composite, or a collection”). The relationship can occur as many
-datasets in one file, and can also occur as one dataset spread across many files.
+datasets in one file and can also occur as one dataset spread across many files.
 
-Many datasets in one file
-^^^^^^^^^^^^^^^^^^^^^^^^^
+A single file containing many (potentially overlapping) datasets is referred to as a "collection".
+Typically the entire collection file can also be treated as a dataset, and the collection is usually written that way.
+Each dataset in a collection file is retrievable independently, provided an appropriate plugin exists to read it.
+Since there is nothing else special about them, they are not discussed further here.
 
-A file (or other persistent representation of a dataset) may be composed of
-multiple component datasets. Each of those datasets is retrievable
-independently, provided an appropriate plugin exists to read it.
-
-One dataset across multiple files
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-A dataset being retrieved may be composed of multiple component datasets, each
-of which is its own independent dataset. Butler supports getting python objects
-that are composed of datasets that exist in multiple files. This is the purpose
-of Composite Datasets.
-
-Composite Dataset Types
-^^^^^^^^^^^^^^^^^^^^^^^
-
-Type 1
-    All the data for a single dataset is all the data in a single (FITS) file.
-
-Type 2
-    Many different datasets have data in a single (FITS) file.
-
-Type 3
-    A single dataset has data in many different (FITS) files.
+A dataset that is composed of multiple files is referred to as a "composite dataset".
+The composite dataset is composed of multiple "component" files, each
+of which is its own independent dataset. The Butler Composite Dataset feature documented in this section supports getting python objects from these composite datasets.
 
 Components
 ^^^^^^^^^^
 
-A Composite dataset is made up of Component datasets, each of which may be a
-type of composite dataset or a Type 1 dataset.
+A composite dataset is made up of component datasets, each of which may be any
+kind of dataset, including another composite.
 
 Components are specified in the policy, as named members under the ``composite``
 section within the composite object datasetType definition:
@@ -996,10 +978,10 @@ component must be accessible).
 Assembler & Disassembler
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-For every Composite datasetType, an "assembler" function is required by Butler.
-This function is used to assemble a Composite object from its component parts.
-Similarly, a "disassembler" is required, that can deconstruct a Composite Object
-into Component Objects to be serialized individually.
+For every composite datasetType, an "assembler" function is required by Butler.
+This function is used to assemble a composite object from its component parts.
+Similarly, a "disassembler" is required, that can deconstruct a composite object
+into component objects to be serialized individually.
 
 There is a generic assembler and disassembler that can be used in some cases. If
 it won't work, assembler and disassembler plugins can be specified.
@@ -1242,8 +1224,8 @@ at the top of the repository search list.
 Loading Components Individually
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-It is possible to load a Component object of a Composite dataset without loading
-the entire Composite object. To do so, when calling :code:`butler.get()`, use
+It is possible to load a component object of a composite dataset without loading
+the entire composite object. To do so, when calling :code:`butler.get()`, use
 :code:`<datasetType>.<componentName>`. For example, when using a composite
 declared like this:
 
