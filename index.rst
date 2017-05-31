@@ -438,11 +438,13 @@ Storage is the abstraction layer that separates Repositories in persistant
 storage from the parts of the framework that use the data in the Repository.
 
 There is a ``Storage`` class that is a factory and convenience layer, and
-Storage Interface classes that implement access to different types of storage
-types such as the local filesystem or remote object stores like Swift.
+storage interface classes implement access to different types of storage types
+such as the local filesystem or remote object stores like Swift. There is an
+abstract base class called ``StorageInterface`` that storage interface classes
+should inherit from.
 
-Storage Interface classes are responsible for implementing concurrency control
-that cooperates with their actual storage.
+Storage Interface subclasses are responsible for implementing concurrency
+control that cooperates with their actual storage.
 
 Storage Interface classes are interfaces and may contain datasets (e.g.
 in-memory storage), but they do not necessarily contain datasets.
@@ -457,251 +459,102 @@ scheme of the URI that describes a Repository root, and ``cls`` is the class
 object that implements the ``StorageInterface`` protocol.
 
 Storage also is a helper for accessing storage interface functions. Without it,
-users would have to call e.g.
-``Storage.makeFromUri(uri).putRepositoryCfg(uri, cfg)``, whereas with the helper
-in Storage, the user can call ``Storage.putRepositoryCfg(uri, cfg)`` and Storage
-handles making a temporary Storage Interface instance inside the body of the
-function.
+users would have to call e.g. ``Storage.makeFromUri(uri).putRepositoryCfg(uri,
+cfg)``, whereas with the helper in Storage, the user can call
+``Storage.putRepositoryCfg(uri, cfg)`` and Storage handles making a temporary
+Storage Interface instance inside the body of the function.
 
+When getting a ``RepositoryCfg`` by calling ``Storage.getRepositoryCfg`` the
+cfg is cached (key is the URI), so that multiple lookups are not performed on
+storages (that might be remote and therefore expensive to fetch).
+RepositoryCfgs are not supposed to change once they are created so this should
+not lead to stale data.
 
-Storage Interface Protocol
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+StorageInterface
+^^^^^^^^^^^^^^^^
 
 Butler uses Storage Interface classes and a Storage factory class to allow
 it to work with files that may be located anywhere (not just on the local
-posix filesystem, e.g. in a Swift storage). To support this a Storage Interface
-definition has been added.
+posix filesystem, e.g. in a Swift storage).
+
 Storage-type specific classes should be used instead of calling filesystem
-directly to access a repository. For example, an instance of ``PosixStorage`` is
-used to access the filesystem. A ``SwiftStorage`` instance will be used to
-access a Repository in a Swift storage container. The Storage interface is still
-"wet paint" but currently includes the following functions. When creating new
-Storage Interface classes, these must be implemented.
+directly to access a repository. For example, an instance of ``PosixStorage``
+is used to access the filesystem. A ``SwiftStorage`` instance will be used to
+access a Repository in a Swift storage container.
 
-.. code-block:: python
+Some ``StorageInterface`` subclasses are provided with Butler in daf_persistence,
+they are discussed below. Others may be added by registering them with Storage
+using its ``registerStorageClass`` function.
 
-    def write(self, butlerLocation, obj):
-        """Writes an object to a location and persistence format specified by ButlerLocation
+During ``Butler.__init__``, for each repository a ``StorageInterface`` subclass
+is selected according to the scheme of the root URI passed into
+``Butler.__init__`` (via the ``inputs`` and ``outputs`` arguments). For example
+``root='swift://<swift parameters>'`` will select ``SwiftStorage`` interface
+that is registered with Storage like
+``Storage.registerStorageClass(scheme='swift', cls=SwiftStorage)``
 
-        Parameters
-        ----------
-        butlerLocation : ButlerLocation
-            The location & formatting for the object to be written.
-        obj : object instance
-            The object to be written.
-        """
+The storage interface is still settling. The ``StorageInterface`` abstract base
+class should be a superclass of all storage interfaces to ensure completeness
+and help discoverability if/when the interface evolves.
 
-    def read(self, butlerLocation):
-        """Read from a butlerLocation.
+The StorageInterface API is described in the class documentation.
 
-        Parameters
-        ----------
-        butlerLocation : ButlerLocation
-            The location & formatting for the object(s) to be read.
+PosixStorage
+""""""""""""
 
-        Returns
-        -------
-        A list of objects as described by the butler location. One item for
-        each location in butlerLocation.getLocations()
-        """
+``PosixStorage`` is the interface for file-based repositories on the local
+filesystem. This interface will be used for root that are relative paths,
+absolute paths that start with a single slash, and URIs that start with
+``file:///`` (these will be treated as absolute paths).
 
-    def getLocalFile(self, path):
-        """Get the path to a local copy of the file, downloading it to a
-        temporary if needed.
+``PosixStorage`` contains special functions that are used with 'old' butler
+repositories. Butler framework classes use this API. These special functions
+are not part of the StorageInterface API.
 
-        Parameters
-        ----------
-        A path the the file in storage, relative to root.
+SwiftStorage
+""""""""""""
 
-        Returns
-        -------
-        A path to a local copy of the file. May be the original file (if
-        storage is local).
-        """
+``SwiftStorage`` is the interface for object-based repositories in Swift object
+stores. This interface will be used for URIs that start with ``swift:///``.
 
-    def exists(self, location):
-        """Check if location exists.
+To authorize the connection, the following environment variables must be set:
 
-        Parameters
-        ----------
-        location : ButlerLocation or string
-            A a string or a ButlerLocation that describes the location of an
-            object in this storage.
+* ``SWIFT_USERNAME`` The username to use when authorizing the connection.
+* ``SWIFT_PASSWORD`` The password to use when authorizing the connection.
 
-        Returns
-        -------
-        bool
-            True if exists, else False.
-        """
+The URI form is as follows:
 
-    def instanceSearch(self, path):
-        """Search for the given path in this storage instance.
+.. code-block:: none
 
-        If the path contains an HDU indicator (a number in brackets before the
-        dot, e.g. 'foo.fits[1]', this will be stripped when searching and so
-        will match filenames without the HDU indicator, e.g. 'foo.fits'. The
-        path returned WILL contain the indicator though, e.g. ['foo.fits[1]'].
+    swift://[URL without 'http://']/[Object API Version]/[tenant name (account)]/[container]
 
-        Parameters
-        ----------
-        path : string
-            A filename (and optionally prefix path) to search for within root.
+For example:
 
-        Returns
-        -------
-        string or None
-            The location that was found, or None if no location was found.
-        """
+.. code-block:: none
 
-    @staticmethod
-    def search(root, path, searchParents=False):
-        """Look for the given path in the current root.
+    swift://nebula.ncsa.illinois.edu:5000/v2.0/lsst/my_container
 
-        Also supports searching for the path in Butler v1 repositories by
-        following the Butler v1 _parent symlink
+Typically a single container holds a single repository, with an object called
+``repositoryCfg.yaml`` in the container. There can be exceptions, for example
+``CALIB`` is a second storage location used by ``CameraMapper`` and may not
+contain a repository cfg, instead all the needed details are specified by the
+primary storage location used by ``CameraMapper``.
 
-        If the path contains an HDU indicator (a number in brackets, e.g.
-        'foo.fits[1]', this will be stripped when searching and so
-        will match filenames without the HDU indicator, e.g. 'foo.fits'. The
-        path returned WILL contain the indicator though, e.g. ['foo.fits[1]'].
+SwiftStorage works by downloading objects to temporary files (python
+``tempfile.NamedTemporaryFile``), and using PosixStorage to read the file
+to instantiate the python object.
 
-        Parameters
-        ----------
-        root : string
-            The path to the root directory.
-        path : string
-            The path to the file within the root directory.
-        searchParents : bool, optional
-            For Butler v1 repositories only, if true and a _parent symlink
-            exists, then the directory at _parent will be searched if the file
-            is not found in the root repository. Will continue searching the
-            parent of the parent until the file is found or no additional
-            parent exists.
+With NamedTemporaryFile handles, the file is deleted when the handle is deleted
+(or explicitly closed). In some cases the file object should not be deleted
+while the object exists (for example with an sqlite3 database file). To prevent
+this from happening, the handle is monkey patched onto the object before it
+is returned from ``SwiftStorage.read``.
 
-        Returns
-        -------
-        string or None
-            The location that was found, or None if no location was found.
-        """
-
-    def copyFile(self, fromLocation, toLocation):
-        """Copy a file from one location to another on the local filesystem.
-
-        Parameters
-        ----------
-        fromLocation : path
-            Path and name of existing file.
-         toLocation : path
-            Path and name of new file.
-
-        Returns
-        -------
-        None
-        """
-
-    def locationWithRoot(self, location):
-        """Get the full path to the location.
-
-        :param location:
-        :return:
-        """
-
-    @staticmethod
-    def getRepositoryCfg(uri):
-        """Get a persisted RepositoryCfg
-
-        Parameters
-        ----------
-        uri : URI or path to a RepositoryCfg
-            Description
-
-        Returns
-        -------
-        A RepositoryCfg instance or None
-        """
-
-    @staticmethod
-    def putRepositoryCfg(cfg, loc=None):
-        """Serialize a RepositoryCfg to a location.
-
-        When loc == cfg.root, the RepositoryCfg is to be writtenat the root
-        location of the repository. In that case, root is not written, it is
-        implicit in the location of the cfg. This allows the cfg to move from
-        machine to machine without modification.
-
-        Parameters
-        ----------
-        cfg : RepositoryCfg instance
-            The RepositoryCfg to be serailized.
-        loc : None, optional
-            The location to write the RepositoryCfg. If loc is None, the
-            location will be read from the root parameter of loc.
-
-        Returns
-        -------
-        None
-        """
-
-    @staticmethod
-    def getMapperClass(root):
-        """Get the mapper class associated with a repository root.
-
-        Parameters
-        ----------
-        root : string
-            The location of a persisted ReositoryCfg is (new style repos).
-
-        Returns
-        -------
-        A class object or a class instance, depending on the state of the
-        mapper when the repository was created.
-        """
-
-    # Optional: Only needs to work if relative paths are sensical on this
-    # storage type and for the case where fromPath and toPath are of the same
-    # storage type.
-    @staticmethod
-    def relativePath(fromPath, toPath):
-        """Get a relative path from a location to a location.
-
-        Parameters
-        ----------
-        fromPath : string
-            A path at which to start. It can be a relative path or an
-            absolute path.
-        toPath : string
-            A target location. It can be a relative path or an absolute path.
-
-        Returns
-        -------
-        string
-            A relative path that describes the path from fromPath to toPath.
-        """
-
-    # Optional: Only needs to work if relative paths and absolute paths are
-    # sensical on this storage type and for the case where fromPath and toPath
-    # are of the same storage type.
-    @staticmethod
-    def absolutePath(fromPath, relativePath):
-        """Get an absolute path for the path from fromUri to toUri
-
-        Parameters
-        ----------
-        fromPath : the starting location
-            A location at which to start. It can be a relative path or an
-            absolute path.
-        relativePath : the location relative to fromPath
-            A relative path.
-
-        Returns
-        -------
-        string
-            Path that is an absolute path representation of fromPath +
-            relativePath, if one exists. If relativePath is absolute or if
-            fromPath is not related to relativePath then relativePath will be
-            returned.
-         """
-
+Swift storage also caches the handle to the temporary file in case the object
+is read again, thus saving time by not having to re-download the object. This
+may not serve in place of monkey patching the file: this caching feature may
+need to be optional (if the temporary file storage is getting too big), and it
+is possible that objects could still exist after the SwiftStorage is destroyed.
 
 ButlerLocation
 --------------
@@ -829,8 +682,10 @@ Registry
 
 The mapper may use a Registry to look up data about an object when performing a
 query. Currently this can be an sqlite3 database, the class that uses this is
-``SqliteRegistry``. Or if no sqlite3 database is found in the repository, Butler
-will create a ``PosixRegistry`` class to perform data lookups on the repository.
+``SqliteRegistry``. Or if no sqlite3 database is found in the repository and
+the repository is on the local filesystem (using a ``PosixStorage`` interface),
+Butler will create a ``PosixRegistry`` class to perform data lookups on the
+repository.
 
 If a repository does not have a sqlite3 registry then the Butler will look in
 parent repositories for a parent with an ``SqliteRegistry`` and if/when one is
