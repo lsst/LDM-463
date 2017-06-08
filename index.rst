@@ -1015,12 +1015,12 @@ the policy's dataset definition has a keyword ``composite``. The structure is:
 
     <dataset type name>: {
         composite: {
+            assembler: <importable function to assemble the components>
+            disassembler: <importable function to assemble the components>
             <component name>: {
                 datasetType: <dataset type>
                 setter: <method name of setter>
                 getter: <method name of getter>
-                assembler: <importable function to do custom deserialization>
-                disassembler: <importable function to do custom serialization>
                 subset: bool
                 inputOnly: bool
             }
