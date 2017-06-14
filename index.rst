@@ -645,14 +645,16 @@ dataset type name when calling ``Butler.get``. For example,
 Exposure component Getters
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-For exposure datasets, the ``wcs``, ``calib``, and ``visit`` information can be
-retrieved by adding ``_`` plus the extension to the dataset type when calling
-``butler.get``, like so:
+For exposure datasets, the ``wcs``, ``calib``, ``visit``, and ``filter``
+information can be retrieved by adding ``_`` plus the extension to the dataset
+type when calling ``butler.get``, like so:
 
 * ``<datasetType>_wcs``, for example ``wcs = butler.get(calexp_wcs, ...)``
 * ``<datasetType>_calib``, for example ``calib = butler.get(calexp_calib, ...)``
 * ``<datasetType>_visitInfo`` for example
   ``wcs = butler.get(calexp_visitInfo, ...)``
+* ``<datasetType>_filter``, for example
+  ``filt = butler.get(calexp_filter, ...)``
 
 Bypass Functions
 ^^^^^^^^^^^^^^^^
