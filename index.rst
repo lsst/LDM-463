@@ -679,6 +679,15 @@ exists in the repository. But with a bypass function the Butler can not know
 what object is actually needed and for example some mappers return information
 derived from the `location.dataId` and do not actually need the object itself.
 
+Calibs
+^^^^^^
+
+The ``CameraMapper`` provides support for calibrations (e.g., bias, dark, flat, fringe frames).
+An important requirement is that no calibration shall ever be used unexpectedly.
+In order to achieve this requirement, we read and write the calibrations from separate directories:
+calibrations shall be read from the calibration root directory, and written to the same root directory as other butler datasets.
+
+
 Registry
 --------
 
