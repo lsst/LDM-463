@@ -679,6 +679,22 @@ exists in the repository. But with a bypass function the Butler can not know
 what object is actually needed and for example some mappers return information
 derived from the `location.dataId` and do not actually need the object itself.
 
+Standardize Functions
+^^^^^^^^^^^^^^^^^^^^^
+
+Sometimes objects require further processing after the Butler has instantiated
+the object. To do this the mapper may declare a function with the object's
+dataset type name, preceded by `std_`, that is: `std_<datasetType>`. The
+signature must be `std_<datasetType>(self, item, dataId)`, where `item` is the
+object to be standardized and `dataId` is the `dataId` that was passed in to
+`Butler.get`, including any additional keyword arguments passed to `get` as
+`**rest`. The function must return the standardized `item`. The passed-in
+`item` may be modified and returned if that is what is desired.
+
+Butler does not handle any exceptions thrown by the `std_` function, the user
+code that called `Butler.get` must handle any possible exceptions raised by the
+`std_` function.
+
 Calibs
 ^^^^^^
 
