@@ -676,8 +676,18 @@ This is because with multiple repositories the Butler may successfully map the
 ButlerLocation, but the object needed may actually exist in a parent repository.
 Normally the Butler can accommodate this by looking to see if the located object
 exists in the repository. But with a bypass function the Butler can not know
-what object is actually needed and for example some mappers return information
-derived from the `location.dataId` and do not actually need the object itself.
+what object is actually needed, for example some bypass functions return
+information derived from the `location.dataId` and do not actually need the
+file itself to exist. Because the bypass function can not participate in the
+deferred-read mechansim, Butler executes the bypass function while looking for
+a valid location and if the bypass function succeeds Butler stops performing
+lookups and returns the bypass results in the bypass attribute of the location.
+
+The bypass function may raise any exception for any reason to indicate that
+this bypass is not valid. All exceptions thrown by the bypass function are
+silently caught by Butler. The most common case for an exception is that a file
+does not exist. If the bypass function raises an exception the existence of the
+bypass function is ignored and Butler proceeds performing lookups.
 
 Standardize Functions
 ^^^^^^^^^^^^^^^^^^^^^
