@@ -676,17 +676,44 @@ This is because with multiple repositories the Butler may successfully map the
 ButlerLocation, but the object needed may actually exist in a parent repository.
 Normally the Butler can accommodate this by looking to see if the located object
 exists in the repository. But with a bypass function the Butler can not know
-what object is actually needed and for example some mappers return information
-derived from the `location.dataId` and do not actually need the object itself.
+what object is actually needed, for example some bypass functions return
+information derived from the `location.dataId` and do not actually need the
+file itself to exist. Because the bypass function can not participate in the
+deferred-read mechansim, Butler executes the bypass function while looking for
+a valid location and if the bypass function succeeds Butler stops performing
+lookups and returns the bypass results in the bypass attribute of the location.
+
+The bypass function may raise any exception for any reason to indicate that
+this bypass is not valid. All exceptions thrown by the bypass function are
+silently caught by Butler. The most common case for an exception is that a file
+does not exist. If the bypass function raises an exception the existence of the
+bypass function is ignored and Butler proceeds performing lookups.
+
+Standardize Functions
+^^^^^^^^^^^^^^^^^^^^^
+
+Sometimes objects require further processing after the Butler has instantiated
+the object. To do this the mapper may declare a function with the object's
+dataset type name, preceded by `std_`, that is: `std_<datasetType>`. The
+signature must be `std_<datasetType>(self, item, dataId)`, where `item` is the
+object to be standardized and `dataId` is the `dataId` that was passed in to
+`Butler.get`, including any additional keyword arguments passed to `get` as
+`**rest`. The function must return the standardized `item`. The passed-in
+`item` may be modified and returned if that is what is desired.
+
+Butler does not handle any exceptions thrown by the `std_` function, the user
+code that called `Butler.get` must handle any possible exceptions raised by the
+`std_` function.
 
 Calibs
 ^^^^^^
 
-The ``CameraMapper`` provides support for calibrations (e.g., bias, dark, flat, fringe frames).
-An important requirement is that no calibration shall ever be used unexpectedly.
-In order to achieve this requirement, we read and write the calibrations from separate directories:
-calibrations shall be read from the calibration root directory, and written to the same root directory as other butler datasets.
-
+The ``CameraMapper`` provides support for calibrations (e.g., bias, dark, flat,
+fringe frames). An important requirement is that no calibration shall ever be
+used unexpectedly. In order to achieve this requirement, we read and write the
+calibrations from separate directories: calibrations shall be read from the
+calibration root directory, and written to the same root directory as other
+butler datasets.
 
 Registry
 --------
