@@ -719,22 +719,12 @@ Registry
 --------
 
 The mapper may use a Registry to look up data about an object when performing a
-<<<<<<< HEAD
-query. Currently this can be an sqlite3 database, the class that uses this is
-``SqliteRegistry``. Or if no sqlite3 database is found in the repository and
+query. Currently this can be an sqlite3 database (the class that uses this is
+``SqliteRegistry``) or a PostgreSQL database (using the ``PgsqlRegistry`` class).
+Or if no database is found in the repository and
 the repository is on the local filesystem (using a ``PosixStorage`` interface),
 Butler will create a ``PosixRegistry`` class to perform data lookups on the
 repository.
-||||||| merged common ancestors
-query. Currently this can be an sqlite3 database, the class that uses this is
-``SqliteRegistry``. Or if no sqlite3 database is found in the repository, Butler
-will create a ``PosixRegistry`` class to perform data lookups on the repository.
-=======
-query. Currently this can be an sqlite3 database (using the ``SqliteRegistry``
-class) or a PostgreSQL database (using the ``PgsqlRegistry`` class). If no
-database (sqlite3 or PostgreSQL) is found in the repository, the Butler
-will create a ``PosixRegistry`` class to perform data lookups on the repository.
->>>>>>> Registry: add PostgreSQL support information
 
 If a repository does not have a database registry then the Butler will look in
 parent repositories for a parent with a suitable database registry and if/when
