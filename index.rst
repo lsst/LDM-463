@@ -556,6 +556,61 @@ may not serve in place of monkey patching the file: this caching feature may
 need to be optional (if the temporary file storage is getting too big), and it
 is possible that objects could still exist after the SwiftStorage is destroyed.
 
+Formatter
+---------
+
+Formatters are callable objects that have the ability to serialize and
+deserialize objects to and from a type of persistent storage.
+``StorageInterface`` subclasses should use formatters to serialize & deserialize
+objects.
+
+A read Formatter and a write Formatter are registered for a type of class with
+the ``StorageInterface`` subclass that should use the formatter to serialize and
+deserialize instances of that class. For example
+``SqlStorage.registerFormatters(lsst.afw.table.BaseCatalog, read, write)``
+registers a function called ``read`` and a function called ``write`` to be
+Formatters used by ``SqlStorage`` for ``BaseCatalog`` objects.
+
+The API of the Formatter is only dependent on the ``StorageInterface`` subclass
+that will be calling it. The signature of functions called by the
+``StorageInterface`` subclass should depend on what parameters are required to
+read from and write to the persistent storage type. For now ``StorageInterface``
+classes do not use abstract base classes for formatters, though this could be
+added to any ``StorageInterface`` if it was deemed valuable to do so.
+
+Formatters should be registered by calling
+
+.. code-block:: python
+
+    StorageInterface.registerFormatters(formatable, readFormatter, writeFormatter)
+
+Typically ``formatable`` is the class type to serialize & deserialize.
+``readFormatter`` is the function to call when reading and ``writeFormatter`` is
+the function to call when writing.
+
+``StorageInterface`` subclasses may choose to support something other than the
+formatable python class type for the ``formatable`` argument. For example,
+``PosixStorage`` accepts strings as they are specified in the ``storage``
+parameter of the ``datasetType``. In this case the ``ButlerLocation.storage``
+case must be handled separately from the ``ButlerLocation.python`` case.
+
+Getting a Formatter
+^^^^^^^^^^^^^^^^^^^
+
+A ``StorageInterface`` subclass can get a Formatter by calling
+``self.getReadFormatter`` or ``self.getWriteFormatter`` and passing in the class
+type that will be read or written.
+
+In Butler the class type would typically come from a ``ButlerLocation`` instance
+that had been created by the ``Mapper``. This call would look like this:
+
+.. code-block:: python
+
+    class PosixStorage(StorageInterface):
+        def read(self, butlerLocation)
+            formatter = self._getFormatter(butlerLocation.getPythonType())
+            ...
+
 ButlerLocation
 --------------
 
