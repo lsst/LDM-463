@@ -770,6 +770,171 @@ calibrations from separate directories: calibrations shall be read from the
 calibration root directory, and written to the same root directory as other
 butler datasets.
 
+Recipes
+^^^^^^^
+
+Recipes are sets of parameters used to control the operation of a
+`Formatter`. The recipe is provided to the formatter as an
+``lsst.daf.base.PropertySet``, known as the ``additionalData``. Recipes are
+grouped by the relevant storage type and each recipe has a symbolic name which
+may be used to refer to the appropriate set of parameters. Recipes are defined
+in YAML format in ``obs_base/policy/writeRecipes.yaml`` [#]_; obs packages may
+define their own custom recipes in ``obs_whatever/policy/writeRecipes.yaml``
+(to simplify the interface, only new recipe definitions, not overrides, are
+permitted).
+
+.. [#] We don't expect recipes to be required for reading, but these could be
+       added later if needed.
+
+Recipes may be applied to a particular dataset through the mapper policy file
+(typically ``obs_whatever/policy/WhateverMapper.yaml``) by providing a recipe
+element for the dataset. The default recipe (used if no recipe is explicitly
+provided) is called ``default``.
+
+Recipes are currently only used for the ``FitsStorage`` storage type (used for
+FITS images, specifying compression options), but may be used for other
+storage types if required to configure how the writing is done.
+
+``FitsStorage`` recipes
+"""""""""""""""""""""""
+
+Recipes used for ``FitsStorage`` datasets define how the FITS images will be
+compressed. Separate sets are required for the ``image``, ``mask`` and
+``variance`` planes.
+
+Parameters are separated according to whether they are for compression or
+scaling. Scaling (a.k.a. quantization) is used to convert a floating-point
+image to an integer image, which allows higher compression factors at the
+expense of the loss of some information (typically unimportant information).
+
+The compression options are used exclusively by cfitsio_. They are:
+
+* ``algorithm``: the compression algorithm. Options are:
+
+  + ``NONE``: no compression; this is the default.
+
+  + ``GZIP``: standard GZIP compression; cfitsio calls this ``GZIP_1``.
+
+  + ``GZIP_SHUFFLE``: GZIP compression with shuffle (most-significant byte
+    first); cfitsio calls this ``GZIP_2``.
+
+  + ``RICE``: RICE compression.
+
+  + ``PLIO``: IRAF PLIO compression of masks; this is not generally appropriate,
+    as it has a 24-bit limit, while our masks are 32 bit.
+
+* ``columns``: number of columns in each tile (default is ``0``, which means
+  the entire dimension).
+
+* ``rows``: number of rows in each tile (default is ``1``).
+
+* ``quantizeLevel``: quantization applied by cfitsio to floating-point images.
+  The FITS ``BSCALE`` is chosen to be the standard deviation (note: cfitsio
+  doesn't have access to our masks when it measures the standard deviation)
+  divided by the ``quantizeLevel``. Use ``0`` for lossless compression (this is
+  the default).
+
+The scaling options are used exclusively by our code in order to provide
+cfitsio an integer image which may be compressed. This provides more scaling
+options than cfitsio does, respects our own masks for statistics, and is
+extensible in case we want to add more scaling options later (e.g.,
+logarithmic or asinh scaling). Options are:
+
+* ``algorithm``: the algorithm used to determining the scales (and therefore
+  the dynamic range). Options are:
+
+  + ``NONE``: no scaling at all; this is the default.
+
+  + ``RANGE``: scale based on the dynamic range in the image. This preserves
+    the full dynamic range at the cost of sensitivity to low-level
+    fluctuations.
+
+  + ``STDEV_POSITIVE``: the scale is set to sample the standard deviation of
+    the image (``BSCALE = stdev/quantizeLevel``) and if the entire dynamic
+    range cannot fit then choose that it extends principally positive (allowing
+    only ``quantizePad`` standard deviations negative).
+
+  + ``STDEV_NEGATIVE``: similar to ``STDEV_POSITIVE``, but the fallback dynamic
+    range extends principally negative.
+
+  + ``STDEV_BOTH``: the scale is set similar to ``STDEV_POSITIVE``, but the
+    fallback dynamic range is shared between the positive and negative sides.
+
+  + ``MANUAL``: the scale is set manually.
+
+* ``bitpix``: the bits per pixel, which may be one of ``0,8,16,32,64,-32,-64``
+  (negative means floating-point but you probably don't want to use those
+  here; ``0`` means to use the bitpix appropriate for the image, and this is the
+  default); larger values give more dynamic range and produce larger images
+  (which effect may be negated by compression).
+
+* ``fuzz``: whether to add a random field of values distributed on [0,1) before
+  quantizing; this preserves the expectation value of the floating-point image,
+  while increasing the variance by 1/12. The random values are removed on read
+  (we record the seed in the header) by cfitsio.
+
+* ``seed``: seed for the random number generator used when we fuzz.
+
+* ``maskPlanes``: a list of mask planes to be ignored when doing statistics;
+  for the ``STDEV_*`` algorithms.
+
+* ``quantizeLevel``: for the ``algorithm=STDEV_*`` algorithms, specifies the
+  ratio of the quantum size to the image standard deviation (default is ``4``).
+
+* ``quantizePad``: for the ``algorithm=STDEV_POSITIVE`` and ``STDEV_NEGATIVE``
+  algorithms, specifies how many standard deviations to allow on the short
+  side (default is ``5``).
+
+* ``bscale``, ``bzero``: for the ``algorithm=MANUAL`` algorithm, specifies the
+  ``BSCALE`` and ``BZERO`` to use.
+
+.. _cfitsio: https://heasarc.gsfc.nasa.gov/fitsio/fitsio.html
+
+Here's a few examples::
+
+    # FITS images
+    FitsStorage:
+      # Default: no compression
+      default:
+        image: &default
+          compression:
+            algorithm: NONE
+          scaling:
+            algorithm: NONE
+        mask:
+          <<: *default
+        variance:
+          <<: *default
+      
+      # Lossless compression
+      lossless:
+        image: &lossless
+          compression:
+            algorithm: GZIP_SHUFFLE
+          scaling:
+            algorithm: NONE
+        mask:
+          <<: *lossless
+        variance:
+          <<: *lossless
+      
+      # Basic lossy (quantizing) compression
+      lossyBasic:
+        image: &lossyBasic
+          compression:
+            algorithm: RICE
+          scaling:
+            algorithm: STDEV_POSITIVE
+            maskPlanes: ["NO_DATA"]
+            bitpix: 32
+            quantizeLevel: 10.0
+            quantizePad: 10.0
+        mask:
+          <<: *lossless
+        variance:
+          <<: *lossyBasic
+
+
 Registry
 --------
 
